@@ -7,7 +7,7 @@ import {
     Menu,
     X,
     GraduationCap, User, CreditCard,
-    CalendarCheck,
+    CalendarCheck, Brain,
 } from 'lucide-react';
 import { Header } from '../../../dashboardUtilities.jsx';
 import { useAuth } from '../../../../../contexts/AuthContext.jsx';
@@ -35,6 +35,7 @@ export const Sidebar = () => {
     const navItems = [
         { name: 'Dashboard', icon: LayoutDashboard, link: '/dashboard/parent' },
         { name: 'My Children', icon: GraduationCap, link: '/dashboard/parent/children', label: '' },
+        { name: 'Learning Map', icon: Brain, link: '/dashboard/parent/brain' },
         { name: 'Attendance', icon: CalendarCheck, link: '/dashboard/parent/attendance' },
         { name: 'Fees & Payments', icon: CreditCard, link: '/dashboard/parent/fees' },
         { name: 'Profile', icon: User, link: '/dashboard/parent/profile' },

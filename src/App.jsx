@@ -87,6 +87,12 @@ const MyTimetablePage                = lazy(() => import("./pages/application/Te
 const ScoreEntryPage                 = lazy(() => import("./pages/application/TeacherDashboard/ScoreEntryPage.jsx"));
 const TeacherAssessmentPoliciesPage  = lazy(() => import("./pages/application/TeacherDashboard/TeacherAssessmentPoliciesPage.jsx"));
 
+// Student Brain (teacher + parent views)
+const BrainAssessmentsPage      = lazy(() => import("./pages/application/Brain/teacher/BrainAssessmentsPage.jsx"));
+const BrainAssessmentDetailPage = lazy(() => import("./pages/application/Brain/teacher/BrainAssessmentDetailPage.jsx"));
+const BrainClassInsightsPage    = lazy(() => import("./pages/application/Brain/teacher/ClassInsightsPage.jsx"));
+const ParentChildBrainPage      = lazy(() => import("./pages/application/Brain/parent/ChildBrainPage.jsx"));
+
 
 
 const LoadingFallback = () => <PageLoader />;
@@ -224,6 +230,7 @@ function AppRoutes() {
                 <Route path="/dashboard/parent/attendance" element={<ProtectedRoute requiredRole="parent"><ParentAttendancePage /></ProtectedRoute>} />
                 <Route path="/dashboard/parent/fees" element={<ProtectedRoute requiredRole="parent"><ParentFeesPage /></ProtectedRoute>} />
                 <Route path="/dashboard/parent/profile" element={<ProtectedRoute requiredRole="parent"><ParentProfilePage /></ProtectedRoute>} />
+                <Route path="/dashboard/parent/brain" element={<ProtectedRoute requiredRole="parent"><ParentChildBrainPage /></ProtectedRoute>} />
 
                 {/* Teacher Protected Routes */}
                 <Route path="/dashboard/teacher" element={<ProtectedRoute requiredRole="teacher"><TeacherDashboard /></ProtectedRoute>} />
@@ -235,6 +242,9 @@ function AppRoutes() {
                 <Route path="/dashboard/teacher/timetable" element={<ProtectedRoute requiredRole="teacher"><MyTimetablePage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/score-entry" element={<ProtectedRoute requiredRole="teacher"><ScoreEntryPage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/assessment-policies" element={<ProtectedRoute requiredRole="teacher"><TeacherAssessmentPoliciesPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain" element={<ProtectedRoute requiredRole="teacher"><BrainAssessmentsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain/insights" element={<ProtectedRoute requiredRole="teacher"><BrainClassInsightsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain/assessments/:assessmentId" element={<ProtectedRoute requiredRole="teacher"><BrainAssessmentDetailPage /></ProtectedRoute>} />
 
                 <Route path="*" element={<Navigate to="/" />} />
 
