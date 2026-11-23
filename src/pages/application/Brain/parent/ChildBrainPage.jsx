@@ -8,6 +8,7 @@ import { getParentDashboard } from '../../../auth/authAPIs.js';
 import { formatSchoolDate } from '../../../../utils/schoolLocale.js';
 import { getChildBrain } from '../services/brainAPIs.js';
 import { describeTrend, performanceBand, summariseChild, trendDirection } from '../brainMath.js';
+import BrainViz from '../components/BrainViz.jsx';
 import { BandChip, DemoDataBanner, EvidenceCaveat, EvidenceLegend, EvidenceMeter, PerformanceBar } from '../components/BrainShared.jsx';
 
 const SPARK_COLOR = { green: '#16a34a', blue: '#3b82f6', amber: '#f59e0b', gray: '#9ca3af' };
@@ -26,12 +27,12 @@ function Spark({ series, tone }) {
     );
 }
 
-function TopicCard({ node, ev }) {
+function TopicCard({ node, ev, flash }) {
     const [open, setOpen] = useState(false);
     const band = performanceBand(ev);
     const trend = trendDirection(ev.series);
     return (
-        <li className="rounded-xl border border-gray-200 bg-white p-3.5">
+        <li id={`topic-${node.id}`} className={`scroll-mt-20 rounded-xl border bg-white p-3.5 transition-shadow duration-500 ${flash ? 'border-blue-300 shadow-[0_0_0_3px_rgba(59,130,246,0.25)]' : 'border-gray-200'}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <h4 className="text-[14px] font-semibold text-gray-900">{node.subtopic}</h4>
@@ -120,6 +121,14 @@ export default function ChildBrainPage() {
     const [brain, setBrain] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedId, setSelectedId] = useState(null);
+    const [flashId, setFlashId] = useState(null);
+
+    const jumpToTopic = (id) => {
+        document.getElementById(`topic-${id}`)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+        setFlashId(id);
+        setTimeout(() => setFlashId(null), 1800);
+    };
 
     useEffect(() => {
         let alive = true;
@@ -131,6 +140,9 @@ export default function ChildBrainPage() {
 
     const childId = params.get('child') ?? children?.[0]?.id;
     const child = children?.find((c) => String(c.id) === String(childId));
+
+    // A different child has different topics, so clear any selected point.
+    useEffect(() => { setSelectedId(null); }, [childId]);
 
     const load = useCallback(async () => {
         if (!childId) return;
@@ -211,13 +223,16 @@ export default function ChildBrainPage() {
                                     </section>
                                 )}
 
+                                <BrainViz nodes={nodes} evidence={evidence} selectedId={selectedId}
+                                    onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} onJump={jumpToTopic} />
+
                                 <EvidenceLegend />
 
                                 {grouped.map((g) => (
                                     <section key={`${g.subject}|${g.topic}`} className="space-y-2">
                                         <h3 className="text-[12px] font-bold uppercase tracking-wider text-gray-400">{g.subject} · {g.topic}</h3>
                                         <ul className="space-y-2.5">
-                                            {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} />)}
+                                            {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} flash={flashId === n.id} />)}
                                         </ul>
                                     </section>
                                 ))}

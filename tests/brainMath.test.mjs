@@ -237,3 +237,67 @@ test('parent summary highlights strengths, rises and focus areas, and stays sile
     assert.doesNotMatch(text, /because|weak|struggl|fail/i);
     assert.deepEqual(summariseChild(nodes, {}, 'X'), []);
 });
+
+// ─── Animated brain layout ───────────────────────────────────────────────────
+
+import { layoutBrain, insideCerebrum, dustPoints, cerebrumPath, NODE_RADIUS, TONE_COLOR } from '../src/pages/application/Brain/brainViz.js';
+
+const vizNodes = (spec) => spec.flatMap(([subject, topic, subs]) =>
+    subs.map((s) => ({ id: `${subject}.${topic}.${s}`, subject, topic, subtopic: s })));
+
+test('brain layout places every topic exactly once, inside the brain, without overlap', () => {
+    const nodes = vizNodes([
+        ['Maths', 'Algebra', ['Linear', 'Quadratic', 'Simultaneous']],
+        ['Maths', 'Sequences', ['AP', 'GP']],
+        ['Maths', 'Geometry', ['Circles']],
+        ['English', 'Reading', ['Inference', 'Vocabulary', 'Summary', 'Tone']],
+    ]);
+    const { items } = layoutBrain(nodes);
+    assert.equal(items.length, nodes.length);
+    assert.equal(new Set(items.map((i) => i.id)).size, nodes.length);
+    for (const it of items) assert.ok(insideCerebrum(it.x, it.y), `${it.id} at ${it.x},${it.y} is outside the brain`);
+    for (let a = 0; a < items.length; a += 1) {
+        for (let b = a + 1; b < items.length; b += 1) {
+            const d = Math.hypot(items[a].x - items[b].x, items[a].y - items[b].y);
+            assert.ok(d >= 14, `${items[a].id} and ${items[b].id} overlap (${d.toFixed(1)}px)`);
+        }
+    }
+});
+
+test('brain layout is stable: same topics in any input order give the same picture', () => {
+    const nodes = vizNodes([['Maths', 'Algebra', ['Linear', 'Quadratic']], ['Maths', 'Geometry', ['Circles']]]);
+    const a = layoutBrain(nodes).items.map((i) => [i.id, i.x, i.y]);
+    const b = layoutBrain([...nodes].reverse()).items.map((i) => [i.id, i.x, i.y]).sort();
+    assert.deepEqual([...a].sort(), b);
+});
+
+test('topics of one group sit closer together than topics of different groups, and only same-group points are linked', () => {
+    const nodes = vizNodes([['Maths', 'Algebra', ['Linear', 'Quadratic', 'Simultaneous']], ['Maths', 'Geometry', ['Circles', 'Angles']]]);
+    const { items, links } = layoutBrain(nodes);
+    const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+    const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+    const algebra = items.filter((i) => i.node.topic === 'Algebra');
+    const geometry = items.filter((i) => i.node.topic === 'Geometry');
+    const within = Math.max(dist(algebra[0], algebra[1]), dist(geometry[0], geometry[1]));
+    const between = Math.min(...algebra.flatMap((a) => geometry.map((g) => dist(a, g))));
+    assert.ok(within < between);
+    assert.ok(links.length > 0);
+    for (const l of links) assert.equal(byId[l.from].groupKey, byId[l.to].groupKey);
+});
+
+test('a single-topic group has no links; more groups than slots still land inside the brain', () => {
+    assert.equal(layoutBrain(vizNodes([['M', 'Solo', ['One']]])).links.length, 0);
+    const many = vizNodes(Array.from({ length: 14 }, (_, i) => ['S', `T${String(i).padStart(2, '0')}`, ['x']]));
+    const { items } = layoutBrain(many);
+    assert.equal(items.length, 14);
+    for (const it of items) assert.ok(insideCerebrum(it.x, it.y));
+});
+
+test('brain decoration is deterministic and inside the outline; no band is coloured red', () => {
+    assert.deepEqual(dustPoints(30, 7), dustPoints(30, 7));
+    for (const p of dustPoints(60, 3)) assert.ok(insideCerebrum(p.x, p.y));
+    assert.match(cerebrumPath(), /^M[\d. ]+L/);
+    assert.ok(NODE_RADIUS.good > NODE_RADIUS.moderate && NODE_RADIUS.moderate > NODE_RADIUS.limited && NODE_RADIUS.limited > NODE_RADIUS.none);
+    for (const band of Object.values(BANDS)) assert.ok(TONE_COLOR[band.tone], `no colour for tone ${band.tone}`);
+    assert.ok(!Object.values(TONE_COLOR).some((c) => /^#(dc2626|ef4444|b91c1c)$/i.test(c)));
+});

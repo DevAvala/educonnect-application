@@ -202,6 +202,7 @@ No real student data goes to any AI service until these are done:
 - Parent route: `/dashboard/parent/brain` (learning map with evidence, trend, "see the assessments behind this", progress across tests).
 - `services/brainAPIs.js` + `brainMockStore.js`: all data is an invented in-memory demo set. Every Brain page shows a "Demo data" banner while it is on. `VITE_BRAIN_USE_MOCKS=false` switches to real endpoints.
 - `docs/STUDENT_BRAIN_API_CONTRACT.md`: the proposed endpoints and rules for the backend developer.
+- **Animated brain map** (`brainViz.js`, `components/BrainViz.jsx`), shown on the parent Learning Map. A 2D SVG brain, chosen over 3D so it stays light on cheap phones and slow data. One glowing point per topic: colour = performance band (never red), size = evidence strength, hollow dashed = limited evidence, dim = not assessed yet, outward ripple = marks have gone up. Lines join only points of the same topic group (no cross-topic links, because prerequisites are undecided). Slow idle motion with a Pause button, switched off entirely for "reduce motion". Keyboard and screen-reader accessible; the topic list below it is the full-detail version. It states plainly that it is not a measure of intelligence. Meant to be reused for the student's own "My Brain" view once student logins are decided.
 
 **Provisional and awaiting the product owner** (all in `brainMath.js`, one place to change):
 - Band cut-offs (strong ≥ 85, well ≥ 70, developing ≥ 50, else needs focused practice).
