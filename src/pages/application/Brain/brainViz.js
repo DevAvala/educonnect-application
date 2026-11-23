@@ -180,6 +180,20 @@ export function cameraFor(group, scale = 2.1) {
     return { cx: clamp(group.x, w / 2, VIEW.w - w / 2), cy: clamp(group.y, h / 2, VIEW.h - h / 2), s: scale };
 }
 
+/** Move a point from one viewport fraction to another while changing the camera zoom. */
+export function moveBrainCamera(camera, start, end, zoom = camera.s) {
+    const s = clamp(zoom, 1, 4);
+    const w = VIEW.w / s;
+    const h = VIEW.h / s;
+    const cx = camera.cx + (start.x - 0.5) * VIEW.w / camera.s - (end.x - 0.5) * w;
+    const cy = camera.cy + (start.y - 0.5) * VIEW.h / camera.s - (end.y - 0.5) * h;
+    return {
+        cx: clamp(cx, w * 0.3, VIEW.w - w * 0.3),
+        cy: clamp(cy, h * 0.4, VIEW.h - h * 0.4),
+        s,
+    };
+}
+
 /** The viewBox string for a camera. */
 export function viewBoxFor({ cx, cy, s }) {
     const w = VIEW.w / s; const h = VIEW.h / s;

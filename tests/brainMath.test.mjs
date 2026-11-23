@@ -242,7 +242,7 @@ test('parent summary highlights strengths, rises and focus areas, and stays sile
 
 // ─── Animated brain layout ───────────────────────────────────────────────────
 
-import { layoutBrain, insideCerebrum, dustPoints, cerebrumPath, NODE_RADIUS, TONE_COLOR, cameraFor, viewBoxFor, VIEW, wrapLabel, placeLabel } from '../src/pages/application/Brain/brainViz.js';
+import { layoutBrain, insideCerebrum, dustPoints, cerebrumPath, NODE_RADIUS, TONE_COLOR, cameraFor, moveBrainCamera, viewBoxFor, VIEW, wrapLabel, placeLabel } from '../src/pages/application/Brain/brainViz.js';
 
 const vizNodes = (spec) => spec.flatMap(([subject, topic, subs]) =>
     subs.map((s) => ({ id: `${subject}.${topic}.${s}`, subject, topic, subtopic: s })));
@@ -447,6 +447,23 @@ test('topic groups carry the position and reach used for labels and zooming', ()
     }
     assert.deepEqual(cameraFor(null), { cx: VIEW.w / 2, cy: VIEW.h / 2, s: 1 });
     assert.equal(viewBoxFor(cameraFor(null)), `0.00 0.00 ${VIEW.w}.00 ${VIEW.h}.00`);
+});
+
+test('pinching keeps the same brain point under a moving midpoint', () => {
+    const previous = cameraFor(null);
+    const start = { x: 0.25, y: 0.75 };
+    const end = { x: 0.4, y: 0.6 };
+    const zoomed = moveBrainCamera(previous, start, end, 2);
+    assert.deepEqual(zoomed, { cx: 120, cy: 224, s: 2 });
+    assert.deepEqual(moveBrainCamera(zoomed, end, start, 1), previous);
+});
+
+test('pinching and panning keep the brain in reach', () => {
+    const previous = cameraFor(null);
+    const center = { x: 0.5, y: 0.5 };
+    assert.deepEqual(moveBrainCamera(previous, center, center, 0.1), previous);
+    assert.equal(moveBrainCamera(previous, center, center, 10).s, 4);
+    assert.deepEqual(moveBrainCamera(previous, center, { x: 10, y: -10 }), { cx: 120, cy: 192, s: 1 });
 });
 
 test('zoomed labels wrap and stay inside the visible window, whatever the name length', () => {

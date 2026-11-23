@@ -3,7 +3,7 @@ import { animate, motion, useReducedMotion } from 'framer-motion';
 import { ArrowDown, Pause, Play, RotateCcw, Users, ZoomOut } from 'lucide-react';
 import {
     BRAINSTEM_PATH, CEREBELLUM, FOLDS, GLOW, NODE_RADIUS, TONE_COLOR, VIEW,
-    cameraFor, cerebrumPath, dustPoints, layoutBrain, placeLabel, viewBoxFor,
+    cameraFor, cerebrumPath, dustPoints, layoutBrain, moveBrainCamera, placeLabel, viewBoxFor,
 } from '../brainViz.js';
 import { bandChanges, describeTrend, evidenceStrength, evidenceUpTo, performanceBand, trendDirection } from '../brainMath.js';
 import { formatSchoolDate } from '../../../../utils/schoolLocale.js';
@@ -17,7 +17,7 @@ import { BandChip, EvidenceMeter, PerformanceBar, nodePath } from './BrainShared
  *
  * Things you can do: hover or focus a point for a tooltip, click it for detail, click a topic name to zoom the
  * camera in on that group, click a legend entry to highlight one band, press play to watch the brain change
- * test by test, and swipe or drag sideways to move the map. It works for one student (`evidence`) or for a whole
+ * test by test, pinch or double-tap to zoom, and swipe or drag sideways to move the map. It works for one student (`evidence`) or for a whole
  * class (`getEvidence`, where each point carries `classMeta`). Motion is calm, can be paused, and is off for
  * people who ask their device to reduce motion. The topic list beside it is the full-detail version.
  */
@@ -31,6 +31,13 @@ const FILTERS = [
 const ZOOM = 2.1;
 const STEP_MS = 1900;
 const DRAG_THRESHOLD = 7;
+const DOUBLE_TAP_MS = 450;
+const DOUBLE_TAP_DISTANCE = 24;
+
+const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+const pointerPosition = (e) => ({ x: e.clientX, y: e.clientY });
+const viewportPosition = (point, rect) => ({ x: (point.x - rect.left) / rect.width, y: (point.y - rect.top) / rect.height });
 
 const CSS = `
 .bv-root.bv-moving .bv-breathe { animation: bv-breathe 7s ease-in-out infinite; }
@@ -44,7 +51,7 @@ const CSS = `
 .bv-ripple, .bv-select { opacity: 0; }
 .bv-node:focus-visible .bv-focus, .bv-label:focus-visible .bv-focus { opacity: 1; }
 .bv-node:focus, .bv-label:focus { outline: none; }
-.bv-root { touch-action: pan-y pinch-zoom; }
+.bv-root { touch-action: pan-y; }
 .bv-stage { transition: transform .18s ease-out; will-change: transform; }
 @keyframes bv-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.012); } }
 @keyframes bv-halo    { 0%,100% { opacity: .30; transform: scale(1); } 50% { opacity: .62; transform: scale(1.28); } }
@@ -88,7 +95,7 @@ function Point({ item, ev, index, selected, selTick, hovered, dim, motionOn, ent
             <g
                 className="bv-node cursor-pointer"
                 role="button" tabIndex={0} aria-label={describeNode(node, ev)} aria-pressed={selected}
-                onClick={() => onSelect(node.id)}
+                onClick={(e) => onSelect(node.id, e)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id); } }}
                 onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHover(node.id, e.currentTarget); }}
                 onPointerLeave={(e) => { if (e.pointerType === 'mouse') onHover(null); }}
@@ -140,13 +147,16 @@ export default function BrainViz({
     const stageRef = useRef(null);
     const svgRef = useRef(null);
     const camRef = useRef(cameraFor(null));
-    const dragRef = useRef(null);
+    const cameraAnimation = useRef(null);
+    const pointersRef = useRef(new Map());
+    const gestureRef = useRef(null);
+    const tapRef = useRef(null);
     const suppressClickRef = useRef(false);
 
     const [paused, setPaused] = useState(false);
     const [filter, setFilter] = useState(null);       // a FILTERS key, or null
     const [zoomKey, setZoomKey] = useState(null);     // a group key, or null
-    const [panX, setPanX] = useState(0);
+    const [viewMoved, setViewMoved] = useState(false);
     const [step, setStep] = useState(null);           // null = now; otherwise an index into `steps`
     const [playing, setPlaying] = useState(false);
     const [tip, setTip] = useState(null);             // { id, left, top }
@@ -188,19 +198,16 @@ export default function BrainViz({
     const zoomGroup = zoomKey ? groupOf[zoomKey] : null;
     const scale = zoomGroup ? ZOOM : 1;
 
-    // The camera is the SVG's viewBox, tweened by hand: no transform-origin to get wrong.
-    useEffect(() => {
-        const from = { ...camRef.current };
-        const to = cameraFor(zoomGroup, ZOOM);
-        const apply = (c) => { camRef.current = c; svgRef.current?.setAttribute('viewBox', viewBoxFor(c)); };
-        if (!motionOn && !zoomGroup && from.s === 1) { apply(to); return undefined; }
-        const controls = animate(0, 1, {
-            duration: reduced ? 0 : 0.95, ease: [0.22, 1, 0.36, 1],
-            onUpdate: (t) => apply({ cx: from.cx + (to.cx - from.cx) * t, cy: from.cy + (to.cy - from.cy) * t, s: from.s + (to.s - from.s) * t }),
-            onComplete: () => apply(to),
-        });
-        return () => controls.stop();
-    }, [zoomKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Update the SVG viewBox directly so moving fingers do not re-render every point.
+    const applyCamera = (camera) => {
+        camRef.current = camera;
+        svgRef.current?.setAttribute('viewBox', viewBoxFor(camera));
+    };
+
+    useEffect(() => () => {
+        cameraAnimation.current?.stop();
+        clearTimeout(tapRef.current?.timer);
+    }, []);
 
     const matches = (e) => {
         if (!filter) return true;
@@ -229,38 +236,86 @@ export default function BrainViz({
         setTip({ id, left: box.left - wrap.left + box.width / 2, top: box.top - wrap.top });
     };
 
-    const select = (id) => { setSelTick((n) => n + 1); onSelect(id); };
-
     const zoomTo = (key) => {
-        setPanX(0);
+        cameraAnimation.current?.stop();
+        const from = camRef.current;
+        const to = cameraFor(key ? groupOf[key] : null, ZOOM);
+        setViewMoved(false);
         setZoomKey(key);
+        if (!motionOn) { applyCamera(to); return; }
+        cameraAnimation.current = animate(0, 1, {
+            duration: 0.95, ease: [0.22, 1, 0.36, 1],
+            onUpdate: (t) => applyCamera({ cx: from.cx + (to.cx - from.cx) * t, cy: from.cy + (to.cy - from.cy) * t, s: from.s + (to.s - from.s) * t }),
+            onComplete: () => applyCamera(to),
+        });
+    };
+
+    const clearTap = () => {
+        const tap = tapRef.current;
+        clearTimeout(tap?.timer);
+        tapRef.current = null;
+        return tap;
+    };
+
+    // A tap on a point or label waits briefly so a double tap only changes the camera.
+    const mapClick = (e, action) => {
+        const tap = tapRef.current;
+        if (!e?.detail || !tap || Date.now() - tap.time > DOUBLE_TAP_MS) { action(); return; }
+        tap.action = action;
+        tap.timer = setTimeout(() => clearTap()?.action?.(), DOUBLE_TAP_MS - (Date.now() - tap.time));
+    };
+
+    const select = (id, e) => mapClick(e, () => { setSelTick((n) => n + 1); onSelect(id); });
+
+    const beginMovement = (e) => {
+        clearTap();
+        cameraAnimation.current?.stop();
+        suppressClickRef.current = true;
+        for (const id of pointersRef.current.keys()) e.currentTarget.setPointerCapture(id);
+        hover(null);
+        if (stageRef.current) stageRef.current.style.transform = '';
+        setViewMoved(true);
     };
 
     const onPointerDown = (e) => {
-        if (!e.isPrimary || e.button !== 0) return;
-        const viewWidth = VIEW.w / camRef.current.s;
-        dragRef.current = {
-            id: e.pointerId, x: e.clientX, y: e.clientY, startPan: panX, active: false,
-            unitsPerPixel: viewWidth / e.currentTarget.clientWidth,
-            limit: viewWidth / 5,
-        };
-        suppressClickRef.current = false;
+        const pointers = pointersRef.current;
+        if (e.button !== 0 || pointers.size >= 2 || (pointers.size && e.pointerType !== 'touch')) return;
+        const point = pointerPosition(e);
+        pointers.set(e.pointerId, point);
+        if (pointers.size === 1) {
+            gestureRef.current = { type: 'tap', point, time: Date.now() };
+            suppressClickRef.current = false;
+        } else {
+            const [a, b] = pointers.values();
+            beginMovement(e);
+            const rect = e.currentTarget.getBoundingClientRect();
+            gestureRef.current = {
+                type: 'pinch', camera: camRef.current, rect,
+                anchor: viewportPosition(midpoint(a, b), rect), distance: Math.max(1, distance(a, b)),
+            };
+        }
     };
 
     const onMove = (e) => {
-        const drag = dragRef.current;
-        if (drag?.id === e.pointerId) {
-            const dx = e.clientX - drag.x;
-            const dy = e.clientY - drag.y;
-            if (!drag.active && Math.abs(dx) >= DRAG_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
-                drag.active = true;
-                suppressClickRef.current = true;
-                e.currentTarget.setPointerCapture(e.pointerId);
-                hover(null);
-                if (stageRef.current) stageRef.current.style.transform = '';
-            }
-            if (drag.active) {
-                setPanX(Math.max(-drag.limit, Math.min(drag.limit, drag.startPan + dx * drag.unitsPerPixel)));
+        const pointers = pointersRef.current;
+        if (pointers.has(e.pointerId)) {
+            const point = pointerPosition(e);
+            pointers.set(e.pointerId, point);
+            let gesture = gestureRef.current;
+            if (gesture?.type === 'pinch') {
+                const [a, b] = pointers.values();
+                applyCamera(moveBrainCamera(gesture.camera, gesture.anchor, viewportPosition(midpoint(a, b), gesture.rect),
+                    gesture.camera.s * distance(a, b) / gesture.distance));
+                if (camRef.current.s === 1 && zoomKey) setZoomKey(null);
+            } else if (gesture) {
+                const dx = point.x - gesture.point.x;
+                const dy = point.y - gesture.point.y;
+                if (gesture.type === 'tap' && Math.abs(dx) >= DRAG_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+                    beginMovement(e);
+                    gesture = { ...gesture, type: 'pan', camera: camRef.current, width: e.currentTarget.clientWidth };
+                    gestureRef.current = gesture;
+                }
+                if (gesture.type === 'pan') applyCamera(moveBrainCamera(gesture.camera, { x: 0, y: 0 }, { x: dx / gesture.width, y: 0 }));
             }
             return;
         }
@@ -269,12 +324,32 @@ export default function BrainViz({
         const px = (e.clientX - r.left) / r.width - 0.5; const py = (e.clientY - r.top) / r.height - 0.5;
         stageRef.current.style.transform = `perspective(900px) rotateX(${(-py * 7).toFixed(2)}deg) rotateY(${(px * 9).toFixed(2)}deg)`;
     };
-    const finishDrag = (e) => {
-        if (dragRef.current?.id === e.pointerId) dragRef.current = null;
+    const finishPointer = (e, released) => {
+        if (!pointersRef.current.delete(e.pointerId)) return;
+        const gesture = gestureRef.current;
+        gestureRef.current = null;
+        if (!released || gesture?.type !== 'tap') return;
+        const point = pointerPosition(e);
+        const time = Date.now();
+        if (time - gesture.time > DOUBLE_TAP_MS || distance(point, gesture.point) > DRAG_THRESHOLD) return;
+
+        const previousTap = clearTap();
+        if (previousTap && time - previousTap.time <= DOUBLE_TAP_MS && distance(point, previousTap.point) <= DOUBLE_TAP_DISTANCE) {
+            suppressClickRef.current = true;
+            cameraAnimation.current?.stop();
+            hover(null);
+            if (camRef.current.s > 1) { zoomTo(null); return; }
+            const anchor = viewportPosition(point, e.currentTarget.getBoundingClientRect());
+            applyCamera(moveBrainCamera(camRef.current, anchor, anchor, ZOOM));
+            setViewMoved(true);
+            return;
+        }
+        previousTap?.action?.();
+        tapRef.current = { point, time };
     };
 
     const onLeave = (e) => {
-        if (!dragRef.current?.active) finishDrag(e);
+        if (e.pointerType === 'mouse' && gestureRef.current?.type === 'tap') finishPointer(e, false);
         if (stageRef.current) stageRef.current.style.transform = '';
     };
 
@@ -286,7 +361,7 @@ export default function BrainViz({
 
     const onKeyDown = (e) => {
         if (e.key !== 'Escape') return;
-        if (panX) setPanX(0); else if (zoomKey) zoomTo(null); else if (filter) setFilter(null); else if (selectedId) onSelect(selectedId);
+        if (viewMoved) zoomTo(zoomKey); else if (zoomKey) zoomTo(null); else if (filter) setFilter(null); else if (selectedId) onSelect(selectedId);
     };
 
     const selected = selectedId ? byId[selectedId] : null;
@@ -343,7 +418,7 @@ export default function BrainViz({
 
             <div ref={wrapRef} className={`bv-root relative mx-auto mt-2 w-full max-w-[600px] ${motionOn ? 'bv-moving' : ''}`}
                 onPointerDown={onPointerDown} onPointerMove={onMove} onPointerLeave={onLeave}
-                onPointerUp={finishDrag} onPointerCancel={finishDrag} onClickCapture={onClickCapture}>
+                onPointerUp={(e) => finishPointer(e, true)} onPointerCancel={(e) => finishPointer(e, false)} onClickCapture={onClickCapture}>
                 <style>{CSS}</style>
                 <div ref={stageRef} className="bv-stage">
                     <svg ref={svgRef} viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} role="group" aria-labelledby={`${uid}-h`} className="h-auto w-full select-none overflow-hidden rounded-xl">
@@ -353,7 +428,7 @@ export default function BrainViz({
                             </radialGradient>
                         </defs>
 
-                        <g transform={`translate(${panX} 0)`}>
+                        <g>
                             <g aria-hidden="true" className="bv-breathe">
                                 <ellipse cx={CEREBELLUM.cx} cy={CEREBELLUM.cy} rx={CEREBELLUM.rx} ry={CEREBELLUM.ry} fill={`url(#${uid}-fill)`} stroke="#cbd5e1" strokeWidth={2} />
                                 <path d={BRAINSTEM_PATH} fill="none" stroke="#cbd5e1" strokeWidth={14} strokeLinecap="round" />
@@ -391,7 +466,7 @@ export default function BrainViz({
                                 const cy = Math.max(size + 6, g.y - g.r - 5);
                                 return (
                                     <g key={g.key} className="bv-label cursor-pointer" role="button" tabIndex={0} aria-label={`Zoom in on ${g.topic}`}
-                                        onClick={() => zoomTo(g.key)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoomTo(g.key); } }}>
+                                        onClick={(e) => mapClick(e, () => zoomTo(g.key))} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoomTo(g.key); } }}>
                                         <text x={g.x} y={cy} textAnchor="middle" fontSize={size} fontWeight={700} fill="#334155" stroke="#f8fafc" strokeWidth={size * 0.3} paintOrder="stroke" strokeLinejoin="round">
                                             {g.topic}
                                         </text>
@@ -435,9 +510,9 @@ export default function BrainViz({
             </div>
 
             <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 text-[12px] text-gray-500">
-                <p>Swipe or drag sideways to move the brain.</p>
-                {panX !== 0 && (
-                    <button type="button" onClick={() => setPanX(0)} className="font-semibold text-gray-900 underline underline-offset-2">
+                <p>Pinch or double-tap to zoom. Swipe sideways to move the brain.</p>
+                {viewMoved && (
+                    <button type="button" onClick={() => zoomTo(zoomKey)} className="touch-manipulation font-semibold text-gray-900 underline underline-offset-2">
                         Recenter
                     </button>
                 )}
