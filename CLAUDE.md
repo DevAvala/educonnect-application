@@ -7,6 +7,8 @@ It records what was agreed, what is only suggested, the UI/UX rules every screen
 order, the security gate, and a build log. The four original plans are in `docs/ai-lab/sources/`.
 If the master plan and a source plan disagree, stop and ask the user. Do not invent features, data or decisions.
 
+**Parked:** anything that needs a student to sign in (Study Companion, Career & Talent Hub, the student side of Academic Arena, student views of Brain) is on hold by the user's decision. Do not build or design it unless the user brings it back. See section 0 of the master plan for what is parked, what is not, and what to ask before un-parking.
+
 Student Brain lives in this repo. Its backend does not exist yet: see `docs/STUDENT_BRAIN_API_CONTRACT.md`.
 
 ## Working in this codebase

@@ -11,6 +11,30 @@
 
 ---
 
+## 0. PARKED: features that need a student sign-in (read this first)
+
+**Decision (user, 2026-11-23):** ignore anything that needs a student to sign in, **for now**. Do not build,
+design or estimate these until the user brings them back. They are parked, not cancelled.
+
+| Parked | Why it is parked | What to ask before un-parking |
+|---|---|---|
+| **AI Study Companion** (student chat, practice, flashcards, "Explore any topic") | Written entirely for a student using it directly | Parent-led, teacher-led, or real student access? Age limits, parent controls, chat retention, safety escalation to a teacher |
+| **Career & Talent Discovery Hub** (interests, career explorer, try-a-career projects, student-owned Growth Portfolio) | Student-facing by design, and the portfolio is meant to be student-controlled | Who owns the interest data and the portfolio if students cannot sign in? Which ages? Parent-visible or private? |
+| **Academic Arena, student/player side** (join lobby, answer live, see own results and badges) | Competitors must sign in to take part | How do students join live: own login, class code on a shared device, teacher-run on a projector? |
+| **Brain: student views** (My Brain, Knowledge Frontier) | Already dropped for Student Brain | Only if student logins return |
+| Student-owned interests / "Discovery Brain" | Student authors their own interests | Same as the Career Hub |
+
+**Not parked (no student sign-in needed), safe to work on when asked:**
+- Student Brain for **teachers and parents** (built, see section 9).
+- Arena, **organizer side only** (suggestion, not yet agreed): school staff creating events, question banks, rosters, results and certificates. Running a live event still needs a decision on how students join, so do not build the live player.
+- Parent-facing pieces that read Brain data: home support plan, parent assistant, parent-teacher "discuss this topic" (Brain plan phases 2 to 3).
+- Teacher-facing tools: per-student notes, printable or shareable class lists, AI question and topic suggestions (once a model is chosen).
+
+**When the user says "un-park", "bring back the student features" or names one of these:** stop, re-read the
+source plan in `sources/`, ask the "before un-parking" questions above, and record the answers in section 2.
+
+---
+
 ## 1. The four features (numbering confirmed by user)
 
 | # | Feature | One-line purpose | Source plan |
@@ -21,6 +45,8 @@
 | 4 | **Career & Talent Discovery Hub** | Interest, career and talent exploration with a student-controlled portfolio | `sources/educonnect_ai_career_talent_discovery_hub_plan.md` |
 
 Student Brain is the centre. Companion, Arena and Career Hub read from it or feed evidence into it.
+
+> **Parked (see section 0):** Companion and Career Hub, plus the student side of Arena, need a student sign-in and are on hold. Only Student Brain (teachers and parents) is being built.
 
 ---
 
@@ -37,6 +63,7 @@ Status key: **CONFIRMED** = user said so. **SUGGESTED** = Claude proposed, user 
 - Feature numbering 1 to 4 as in the table above. **CONFIRMED**
 - The features should work together rather than be separate silos. **CONFIRMED (direction)**
 - **Student Brain has no student view: teachers and parents only.** **CONFIRMED (2026-11-23)**
+- **Features that need a student sign-in are parked for now (not cancelled). See section 0.** **CONFIRMED (2026-11-23)**
 - Teachers get a repository of every student's brain, filterable to find students who could use support in a topic. **CONFIRMED (2026-11-23)**
 
 ### Suggested, awaiting user approval
@@ -83,6 +110,8 @@ Rules that keep it fair:
 ---
 
 ## 4. Suggested build order
+
+> **Update 2026-11-23:** steps that need a student sign-in are parked (section 0). Read the list below with the Companion, Career Hub and Arena player parts struck out.
 
 1. **Phase 0, Security gate** (section 6).
 2. **Phase 1, Brain Phase 1:** topic hierarchy, teacher-approved question tags, manual marks, CSV/XLSX import with preview, basic knowledge map, read-only student/teacher/parent views.
@@ -196,7 +225,7 @@ No real student data goes to any AI service until these are done:
 
 **Decisions made this session (confirmed by the user):**
 - Start with **teacher and parent screens, built in code** inside `educonnect-application` using the existing pattern library. Figma-first was not chosen.
-- **No student view. Student Brain is for teachers and parents only (confirmed by the user).** There is no student login for Brain, so My Brain and Knowledge Frontier screens are dropped. **Knock-on for the other features (open, must be decided before they are built):** the source plans for the AI Study Companion and the Career & Talent Hub, and the player side of Academic Arena, are student-facing. Without student logins each needs a decision: parent-mediated, teacher-mediated, or a separate student access later.
+- **No student view. Student Brain is for teachers and parents only (confirmed by the user).** There is no student login for Brain, so My Brain and Knowledge Frontier screens are dropped. **Knock-on for the other features (open, must be decided before they are built):** the source plans for the AI Study Companion and the Career & Talent Hub, and the player side of Academic Arena, are student-facing. Without student logins each needs a decision: parent-mediated, teacher-mediated, or a separate student access later. **Now parked: see section 0.**
 
 **What exists** (branch `claude/gracious-curie-ylyt1w`, all under `src/pages/application/Brain/`):
 - `brainMath.js`: the deterministic evidence rules (missing is not zero, shared marks for multi-topic questions, evidence strength, bands, trend, class insights, CSV import preview, parent summary). 22 unit tests in `tests/brainMath.test.mjs`.
