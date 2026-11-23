@@ -22,8 +22,8 @@ export function EvidenceCaveat({ audience = 'teacher' }) {
         ? 'These figures come from the marks your child earned on each question in school tests. The school does not see how your child answered, so they show where to look, not why a mark was lost.'
         : 'These figures come from question-level marks only. They show where performance was weaker or stronger, not why a mark was lost. Written answers are not available to EduConnect.';
     return (
-        <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-2.5 text-[13px] text-blue-900">
-            <Info size={15} className="mt-0.5 shrink-0 text-blue-500" aria-hidden="true" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-2.5 text-[13px] text-[color:var(--color-blue-900)] dark:bg-[var(--bg-subtle)] dark:text-[color:var(--text-primary)]">
+            <Info size={15} className="mt-0.5 shrink-0 text-[color:var(--color-blue-500)] dark:text-blue-300" aria-hidden="true" />
             <p>{text}</p>
         </div>
     );

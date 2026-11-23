@@ -35,7 +35,7 @@ export default function BrainHeader({ subtitle }) {
                         end={t.end}
                         className={({ isActive }) =>
                             `-mb-px border-b-2 px-3.5 py-2 text-sm font-semibold transition-colors ${
-                                isActive ? 'border-[#002684] text-[#002684]' : 'border-transparent text-gray-500 hover:text-gray-800'
+                                isActive ? 'border-[#002684] text-[#002684] dark:border-blue-400 dark:text-[color:var(--text-primary)]' : 'border-transparent text-gray-500 hover:text-gray-800'
                             }`}
                     >
                         {t.label}
