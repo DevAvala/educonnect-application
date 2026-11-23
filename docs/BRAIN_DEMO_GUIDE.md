@@ -26,6 +26,28 @@ be switched on in a production build by accident or by editing the browser.
 > separate demo project that points at this branch and set `VITE_BRAIN_DEMO=true` and
 > `VITE_API_URL=https://demo.invalid` there only.
 
+## Put it on Vercel as a shareable link
+
+Use a **separate Vercel project** for the demo. Do not touch your real one.
+
+1. Vercel dashboard, **Add New, Project**, then import `DevAvala/educonnect-application`.
+2. On the configure screen: **Framework Preset** = Vite, **Build Command** = `npm run build:demo`,
+   **Output Directory** = `dist`. Add **no** environment variables (the demo settings come from `.env.demo`).
+3. Click Deploy. The first build uses the repo's default branch (`dev`), which does not have demo mode, so it
+   will fail. That is expected.
+4. Make Vercel build the demo branch: either push any new commit to `claude/gracious-curie-ylyt1w`
+   (for example `git commit --allow-empty -m "trigger demo deploy" && git push`), or in the project go to
+   **Settings, Environments, Production, Branch Tracking** and set the branch to
+   `claude/gracious-curie-ylyt1w`, then redeploy.
+5. Open the deployment URL. You should see "Student Brain, Preview with demo data".
+6. If other people need to open the link without a Vercel login: **Settings, Deployment Protection**, turn off
+   Vercel Authentication for this demo project. The data is all invented, so this is safe here.
+
+The repo's `vercel.json` already sends every path to `index.html`, so deep links such as
+`/dashboard/teacher/brain` work.
+
+If the build fails on Vercel, set **Node.js Version** to 22.x under Settings, General.
+
 ## Before you present (5 minutes)
 
 - [ ] Run it once end to end. Refreshing the page resets everything to the starting data.
