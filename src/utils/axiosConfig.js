@@ -2,6 +2,7 @@ import axios from 'axios';
 
 import { API_BASE_URL as baseURL } from './apiConfig';
 import { getAuthBridge, REQUEST_TIMEOUT_MS } from './authBridge';
+import { DEMO_MODE, demoAdapter } from './demoMode';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -174,5 +175,8 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+// Demo builds answer every call locally so a presentation never depends on a server.
+if (DEMO_MODE) apiClient.defaults.adapter = demoAdapter;
 
 export default apiClient;

@@ -64,6 +64,7 @@ Status key: **CONFIRMED** = user said so. **SUGGESTED** = Claude proposed, user 
 - The features should work together rather than be separate silos. **CONFIRMED (direction)**
 - **Student Brain has no student view: teachers and parents only.** **CONFIRMED (2026-11-23)**
 - **Features that need a student sign-in are parked for now (not cancelled). See section 0.** **CONFIRMED (2026-11-23)**
+- **Intended AI model: DeepSeek. Not set up; nothing is connected.** **CONFIRMED as intent (2026-11-23).** Things to settle before any real data goes to it are in section 6.
 - Teachers get a repository of every student's brain, filterable to find students who could use support in a topic. **CONFIRMED (2026-11-23)**
 
 ### Suggested, awaiting user approval
@@ -182,6 +183,19 @@ Rules that keep it fair:
 
 ## 6. Security and compliance gate (Phase 0)
 
+> **DeepSeek (intended model), points to settle before connecting it.** Not blockers for the demo, which has no AI:
+> 1. **Where the data goes.** DeepSeek's own hosted service processes requests outside Nigeria. The Nigeria Data
+>    Protection Act 2023 has rules on moving personal data abroad, and children's data needs extra care. Options:
+>    send it only data that identifies no one, get a legal review, or run DeepSeek's open models on infrastructure
+>    you control.
+> 2. **Lowest-risk first use: topic suggestions.** Suggesting a topic for a question needs only the *question text*.
+>    No student names, no marks, no class lists. Start there.
+> 3. **Check accuracy before trusting it.** Test it on real Nigerian-curriculum questions (including maths notation)
+>    against teacher-tagged answers before turning it on. Teachers must still approve every tag.
+> 4. **Keep it swappable.** Put it behind one model layer so another model can replace it without touching screens.
+> 5. Parent-facing explanations, tutoring and chat (later) would send more sensitive context. Decide those separately.
+
+
 No real student data goes to any AI service until these are done:
 1. Review the **publicly accessible report-card storage bucket** noted in the Brain plan. Make it private, serve files via short-lived signed URLs, check what was exposed (object list and access logs), rotate anything sensitive.
 2. Enforce **school-scoped access** on every read, upload, calculation and AI retrieval.
@@ -241,6 +255,12 @@ No real student data goes to any AI service until these are done:
 - Row click opens that student's full brain (`/brain/students/:studentId`): animated brain, topic cards, progress across tests, plain-words summary. The filtered topic is pre-selected. Class-insights rows click through to the matching focused-practice list.
 - **Rules kept:** students with limited evidence are never listed as needing practice, they appear under "Not enough evidence yet" and in a "Not included above" note. Unassessed students are listed separately. Sorting puts enough-evidence students first, lowest marks first; thin evidence never floats to the top. Wording is "could use support", never "weak" or "lacking", and the page says it is not a ranking.
 - Endpoints added to the contract: `GET /api/teacher/brain/students` and `/students/:studentId`. Teachers must only ever receive students from classes they teach.
+
+### 2026-11-23 (later still) — Demo mode for presenting without a backend
+
+- `npm run dev:demo` / `build:demo` / `preview:demo` run the whole frontend with **no backend, no login, no internet** (only cosmetic Google Fonts). The sign-in page is replaced by "Teacher view / Parent view". Every API call is answered in the browser (`src/utils/demoMode.js`); nothing is sent anywhere.
+- It is **build-time only** (`.env.demo`, `VITE_BRAIN_DEMO=true`) and off in a normal build. Verified: a normal build still shows the real sign-in page, still calls the API, and ignores a planted demo role. Never set the flag on production hosting.
+- Presenter's guide and sample marks files: `docs/BRAIN_DEMO_GUIDE.md`, `docs/demo/`.
 
 **Provisional and awaiting the product owner** (all in `brainMath.js`, one place to change):
 - Band cut-offs (strong ≥ 85, well ≥ 70, developing ≥ 50, else needs focused practice).

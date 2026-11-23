@@ -8,7 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "node --test \"tests/*.test.mjs\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:demo": "vite --host --mode demo",
+    "build:demo": "vite build --mode demo",
+    "preview:demo": "vite preview --host --mode demo"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.30.0",

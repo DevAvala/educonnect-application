@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/apiConfig';
 import { setAuthBridge, REQUEST_TIMEOUT_MS } from '../utils/authBridge';
+import { DEMO_MODE, DEMO_USERS, getDemoRole, setDemoRole } from '../utils/demoMode';
 
 const AuthContext = createContext();
 
@@ -35,9 +36,9 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [accessToken, setAccessToken] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => (DEMO_MODE ? DEMO_USERS[getDemoRole()] ?? null : null));
+    const [accessToken, setAccessToken] = useState(() => (DEMO_MODE && DEMO_USERS[getDemoRole()] ? 'demo-token' : null));
+    const [loading, setLoading] = useState(!DEMO_MODE);
     const [tokenExpiry, setTokenExpiry] = useState(null);
     const refreshTimerRef = useRef(null);
     // One refresh request at a time: load, timer, request interceptor and 401 handler all share it
@@ -200,6 +201,7 @@ export const AuthProvider = ({ children }) => {
 
     // Get a guaranteed-valid access token, refreshing if needed
     const getValidAccessToken = async () => {
+        if (DEMO_MODE) return accessToken;
         if (
             !accessToken ||
             accessToken === 'session-valid' ||
@@ -237,6 +239,7 @@ export const AuthProvider = ({ children }) => {
 
     // Logout: invalidate server session and clear local state
     const logout = async () => {
+        if (DEMO_MODE) { setDemoRole(null); clearAuthState(); return; }
         try {
             await sessionHttp.post('/api/school/auth/logout', {});
         } catch (error) {
@@ -275,7 +278,7 @@ export const AuthProvider = ({ children }) => {
     // and send the server a heartbeat only while the user is actually active.
     const isSignedIn = !!user && !!accessToken;
     useEffect(() => {
-        if (!isSignedIn) return undefined;
+        if (!isSignedIn || DEMO_MODE) return undefined;
 
         let lastMark = 0;
         const markActivity = () => {
@@ -313,6 +316,7 @@ export const AuthProvider = ({ children }) => {
 
     // On mount: verify session once
     useEffect(() => {
+        if (DEMO_MODE) return undefined; // demo build: there is no server session to restore
         const init = async () => {
             await checkAuthStatus();
             setLoading(false);
@@ -337,6 +341,12 @@ export const AuthProvider = ({ children }) => {
         checkAuthStatus,
         getValidAccessToken,
         isAuthenticated: !!user && !!accessToken,
+        // Demo builds only: pretend to sign in as a teacher or a parent.
+        demoLogin: DEMO_MODE ? (role) => {
+            setDemoRole(role);
+            setUser(DEMO_USERS[role]);
+            setAccessToken('demo-token');
+        } : undefined,
     };
 
     // Give the API interceptors the latest token helpers. Published during render (not in an effect) so a

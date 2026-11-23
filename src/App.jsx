@@ -6,6 +6,7 @@ import React, { lazy, useEffect} from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { PWAProvider } from './contexts/PWAContext.jsx';
+import { DEMO_MODE } from './utils/demoMode.js';
 import { AcademicProvider } from './contexts/AcademicContext.jsx';
 
 // Components
@@ -20,6 +21,7 @@ import {
 } from './components/pwa';
 
 // StandAlone Pages
+const DemoEntryPage        = lazy(() => import("./pages/auth/DemoEntryPage.jsx"));
 const AuthPage             = lazy(() => import("./pages/auth/AuthPage.jsx"));
 const CompleteRegistration = lazy(() => import("./pages/auth/UserRegistration/CompleteRegistration"));
 const RegisterSchool       = lazy(() => import("./pages/auth/RegisterSchool.jsx").then(m => ({ default: m.RegisterSchool })));
@@ -133,7 +135,7 @@ function AppRoutes() {
         <div className={`font-[Inter]`}>
             <React.Suspense fallback={<LoadingFallback />}>
                 <Routes>
-                <Route path="/" element={<AuthPage />} />
+                <Route path="/" element={DEMO_MODE ? <DemoEntryPage /> : <AuthPage />} />
                 <Route path="/complete-registration" element={<CompleteRegistration />} />
                 <Route element={<AuthLayout />}>
                     <Route path="/register/school" element={<RegisterSchool />} />
