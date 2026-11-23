@@ -17,7 +17,7 @@ import { BandChip, EvidenceMeter, PerformanceBar, nodePath } from './BrainShared
  *
  * Things you can do: hover or focus a point for a tooltip, click it for detail, click a topic name to zoom the
  * camera in on that group, click a legend entry to highlight one band, press play to watch the brain change
- * test by test, and move the mouse over it to tilt it. It works for one student (`evidence`) or for a whole
+ * test by test, and swipe or drag sideways to move the map. It works for one student (`evidence`) or for a whole
  * class (`getEvidence`, where each point carries `classMeta`). Motion is calm, can be paused, and is off for
  * people who ask their device to reduce motion. The topic list beside it is the full-detail version.
  */
@@ -30,6 +30,7 @@ const FILTERS = [
 ];
 const ZOOM = 2.1;
 const STEP_MS = 1900;
+const DRAG_THRESHOLD = 7;
 
 const CSS = `
 .bv-root.bv-moving .bv-breathe { animation: bv-breathe 7s ease-in-out infinite; }
@@ -43,6 +44,7 @@ const CSS = `
 .bv-ripple, .bv-select { opacity: 0; }
 .bv-node:focus-visible .bv-focus, .bv-label:focus-visible .bv-focus { opacity: 1; }
 .bv-node:focus, .bv-label:focus { outline: none; }
+.bv-root { touch-action: pan-y pinch-zoom; }
 .bv-stage { transition: transform .18s ease-out; will-change: transform; }
 @keyframes bv-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.012); } }
 @keyframes bv-halo    { 0%,100% { opacity: .30; transform: scale(1); } 50% { opacity: .62; transform: scale(1.28); } }
@@ -138,10 +140,13 @@ export default function BrainViz({
     const stageRef = useRef(null);
     const svgRef = useRef(null);
     const camRef = useRef(cameraFor(null));
+    const dragRef = useRef(null);
+    const suppressClickRef = useRef(false);
 
     const [paused, setPaused] = useState(false);
     const [filter, setFilter] = useState(null);       // a FILTERS key, or null
     const [zoomKey, setZoomKey] = useState(null);     // a group key, or null
+    const [panX, setPanX] = useState(0);
     const [step, setStep] = useState(null);           // null = now; otherwise an index into `steps`
     const [playing, setPlaying] = useState(false);
     const [tip, setTip] = useState(null);             // { id, left, top }
@@ -226,17 +231,62 @@ export default function BrainViz({
 
     const select = (id) => { setSelTick((n) => n + 1); onSelect(id); };
 
+    const zoomTo = (key) => {
+        setPanX(0);
+        setZoomKey(key);
+    };
+
+    const onPointerDown = (e) => {
+        if (!e.isPrimary || e.button !== 0) return;
+        const viewWidth = VIEW.w / camRef.current.s;
+        dragRef.current = {
+            id: e.pointerId, x: e.clientX, y: e.clientY, startPan: panX, active: false,
+            unitsPerPixel: viewWidth / e.currentTarget.clientWidth,
+            limit: viewWidth / 5,
+        };
+        suppressClickRef.current = false;
+    };
+
     const onMove = (e) => {
-        if (e.pointerType !== 'mouse' || reduced || !stageRef.current) return;
+        const drag = dragRef.current;
+        if (drag?.id === e.pointerId) {
+            const dx = e.clientX - drag.x;
+            const dy = e.clientY - drag.y;
+            if (!drag.active && Math.abs(dx) >= DRAG_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+                drag.active = true;
+                suppressClickRef.current = true;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                hover(null);
+                if (stageRef.current) stageRef.current.style.transform = '';
+            }
+            if (drag.active) {
+                setPanX(Math.max(-drag.limit, Math.min(drag.limit, drag.startPan + dx * drag.unitsPerPixel)));
+            }
+            return;
+        }
+        if (e.pointerType !== 'mouse' || !motionOn || !stageRef.current) return;
         const r = e.currentTarget.getBoundingClientRect();
         const px = (e.clientX - r.left) / r.width - 0.5; const py = (e.clientY - r.top) / r.height - 0.5;
         stageRef.current.style.transform = `perspective(900px) rotateX(${(-py * 7).toFixed(2)}deg) rotateY(${(px * 9).toFixed(2)}deg)`;
     };
-    const onLeave = () => { if (stageRef.current) stageRef.current.style.transform = ''; };
+    const finishDrag = (e) => {
+        if (dragRef.current?.id === e.pointerId) dragRef.current = null;
+    };
+
+    const onLeave = (e) => {
+        if (!dragRef.current?.active) finishDrag(e);
+        if (stageRef.current) stageRef.current.style.transform = '';
+    };
+
+    const onClickCapture = (e) => {
+        if (!suppressClickRef.current || e.detail === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+    };
 
     const onKeyDown = (e) => {
         if (e.key !== 'Escape') return;
-        if (zoomKey) setZoomKey(null); else if (filter) setFilter(null); else if (selectedId) onSelect(selectedId);
+        if (panX) setPanX(0); else if (zoomKey) zoomTo(null); else if (filter) setFilter(null); else if (selectedId) onSelect(selectedId);
     };
 
     const selected = selectedId ? byId[selectedId] : null;
@@ -278,13 +328,13 @@ export default function BrainViz({
                 <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Zoom to a topic">
                     <span className="text-[12.5px] font-semibold text-gray-500">Zoom in:</span>
                     {groups.map((g) => (
-                        <button key={g.key} onClick={() => setZoomKey((z) => (z === g.key ? null : g.key))} aria-pressed={zoomKey === g.key}
+                        <button key={g.key} onClick={() => zoomTo(zoomKey === g.key ? null : g.key)} aria-pressed={zoomKey === g.key}
                             className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold transition-colors ${zoomKey === g.key ? 'border-[#002684] bg-[#002684] text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}>
                             {g.topic} <span className={zoomKey === g.key ? 'text-white/70' : 'text-gray-400'}>{g.ids.length}</span>
                         </button>
                     ))}
                     {zoomKey && (
-                        <button onClick={() => setZoomKey(null)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-blue-700 hover:text-blue-800">
+                        <button onClick={() => zoomTo(null)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-blue-700 hover:text-blue-800">
                             <ZoomOut size={14} /> Whole brain
                         </button>
                     )}
@@ -292,7 +342,8 @@ export default function BrainViz({
             )}
 
             <div ref={wrapRef} className={`bv-root relative mx-auto mt-2 w-full max-w-[600px] ${motionOn ? 'bv-moving' : ''}`}
-                onPointerMove={onMove} onPointerLeave={onLeave}>
+                onPointerDown={onPointerDown} onPointerMove={onMove} onPointerLeave={onLeave}
+                onPointerUp={finishDrag} onPointerCancel={finishDrag} onClickCapture={onClickCapture}>
                 <style>{CSS}</style>
                 <div ref={stageRef} className="bv-stage">
                     <svg ref={svgRef} viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} role="group" aria-labelledby={`${uid}-h`} className="h-auto w-full select-none overflow-hidden rounded-xl">
@@ -302,7 +353,7 @@ export default function BrainViz({
                             </radialGradient>
                         </defs>
 
-                        <g>
+                        <g transform={`translate(${panX} 0)`}>
                             <g aria-hidden="true" className="bv-breathe">
                                 <ellipse cx={CEREBELLUM.cx} cy={CEREBELLUM.cy} rx={CEREBELLUM.rx} ry={CEREBELLUM.ry} fill={`url(#${uid}-fill)`} stroke="#cbd5e1" strokeWidth={2} />
                                 <path d={BRAINSTEM_PATH} fill="none" stroke="#cbd5e1" strokeWidth={14} strokeLinecap="round" />
@@ -340,7 +391,7 @@ export default function BrainViz({
                                 const cy = Math.max(size + 6, g.y - g.r - 5);
                                 return (
                                     <g key={g.key} className="bv-label cursor-pointer" role="button" tabIndex={0} aria-label={`Zoom in on ${g.topic}`}
-                                        onClick={() => setZoomKey(g.key)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setZoomKey(g.key); } }}>
+                                        onClick={() => zoomTo(g.key)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoomTo(g.key); } }}>
                                         <text x={g.x} y={cy} textAnchor="middle" fontSize={size} fontWeight={700} fill="#334155" stroke="#f8fafc" strokeWidth={size * 0.3} paintOrder="stroke" strokeLinejoin="round">
                                             {g.topic}
                                         </text>
@@ -380,6 +431,15 @@ export default function BrainViz({
                             </p>
                         ) : <p className="mt-0.5 text-[12px] text-gray-300">Not assessed yet</p>}
                     </div>
+                )}
+            </div>
+
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 text-[12px] text-gray-500">
+                <p>Swipe or drag sideways to move the brain.</p>
+                {panX !== 0 && (
+                    <button type="button" onClick={() => setPanX(0)} className="font-semibold text-gray-900 underline underline-offset-2">
+                        Recenter
+                    </button>
                 )}
             </div>
 
