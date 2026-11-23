@@ -3,17 +3,20 @@ import { NavLink } from 'react-router-dom';
 import { Brain } from 'lucide-react';
 
 export const BRAIN_TEACHER_ROUTES = {
-    assessments: '/dashboard/teacher/brain',
+    students: '/dashboard/teacher/brain',
+    student: (id) => `/dashboard/teacher/brain/students/${id}`,
     insights: '/dashboard/teacher/brain/insights',
+    assessments: '/dashboard/teacher/brain/assessments',
     assessment: (id) => `/dashboard/teacher/brain/assessments/${id}`,
 };
 
 const TABS = [
-    { to: BRAIN_TEACHER_ROUTES.assessments, label: 'Assessments', end: true },
+    { to: BRAIN_TEACHER_ROUTES.students, label: 'Student brains', end: true },
     { to: BRAIN_TEACHER_ROUTES.insights, label: 'Class insights' },
+    { to: BRAIN_TEACHER_ROUTES.assessments, label: 'Assessments', end: true },
 ];
 
-/** Page title plus the two-tab switcher shared by the teacher's Student Brain screens. */
+/** Page title plus the three-tab switcher shared by the teacher's Student Brain screens. */
 export default function BrainHeader({ subtitle }) {
     return (
         <div className="space-y-3">

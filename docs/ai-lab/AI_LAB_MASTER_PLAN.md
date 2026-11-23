@@ -36,6 +36,8 @@ Status key: **CONFIRMED** = user said so. **SUGGESTED** = Claude proposed, user 
 - Arena: intra-school AND inter-school; both schools and EduConnect can host; core experience is LIVE. **CONFIRMED**
 - Feature numbering 1 to 4 as in the table above. **CONFIRMED**
 - The features should work together rather than be separate silos. **CONFIRMED (direction)**
+- **Student Brain has no student view: teachers and parents only.** **CONFIRMED (2026-11-23)**
+- Teachers get a repository of every student's brain, filterable to find students who could use support in a topic. **CONFIRMED (2026-11-23)**
 
 ### Suggested, awaiting user approval
 | Topic | Suggestion |
@@ -178,7 +180,7 @@ No real student data goes to any AI service until these are done:
 - **`educonnect-application`** is the school portal: React 19, Vite 7, Tailwind 4, shadcn/ui (new-york style) + Radix, a few Chakra remnants, Recharts, react-hook-form + zod, axios, framer-motion, lucide icons, PWA with offline support. Plain JS/JSX (no TypeScript). Tests: `node --test tests/*.test.mjs`. Lint: `eslint .`.
 - **`educonnect-frontend`** is the public marketing site. Not where Brain lives.
 - **There is no backend repo in this session's scope.** The app calls an external API via `VITE_API_URL`. All new endpoints for Brain/Companion/Arena/Career Hub need the backend developer. Frontend work should be built against mocked API contracts first (repo already has `MockAPIswithLive.js` and per-area `services/*APIs.js` files as the pattern).
-- **Roles that exist today: `admin`, `teacher`, `parent` only.** There is NO student role, login or dashboard. Student-facing screens (My Brain, Knowledge Frontier, Companion, Career Hub, Arena player) need a student role first. Routes are `/dashboard/{role}/...` guarded by `ProtectedRoute requiredRole`.
+- **Roles that exist today: `admin`, `teacher`, `parent` only.** There is NO student role, login or dashboard. Student-facing screens (My Brain, Knowledge Frontier, Companion, Career Hub, Arena player) need a student role first. Routes are `/dashboard/{role}/...` guarded by `ProtectedRoute requiredRole`. **Decision (2026-11-23): Student Brain has no student view, so no student role is needed for it.**
 - **Existing grading stores one score per student per assessment entry** (`maxObtainableScore`, `scoreObtained`, policy components CA/exam) in `TeacherDashboard/ScoreEntryPage.jsx` and `services/assessmentEntryAPIs.js`. **There is no question-level data anywhere.** Brain needs new entities: questions, question-to-topic tags, per-question scores, knowledge nodes, evidence, snapshots (see Brain plan section 10), plus new endpoints.
 - **Reusable pieces:** `AcademicContext` (year/term scope), `utils/csv.js` and `settings/DataImportPage.jsx` (import patterns), teacher `StudentAnalytics.jsx`, parent `MyChildren.jsx` (child selection), admin `StudentProfilePage.jsx` (DetailPage example), `Recharts` for charts.
 - **Design tokens** (`src/index.css`): brand/primary `#002684`, font Inter, radius 0.75rem, chart colours `#002684 #3b82f6 #10b981 #f59e0b #ef4444`, dark mode via `data-theme="dark"` + `.dark` (`pages/application/dark-mode.css`, `utils/theme.js`).
@@ -194,7 +196,7 @@ No real student data goes to any AI service until these are done:
 
 **Decisions made this session (confirmed by the user):**
 - Start with **teacher and parent screens, built in code** inside `educonnect-application` using the existing pattern library. Figma-first was not chosen.
-- **Student logins: undecided ("not sure yet").** Student-facing screens (My Brain, Knowledge Frontier, Companion, Career Hub, Arena player) are on hold until this is decided. Decide before starting Companion.
+- **No student view. Student Brain is for teachers and parents only (confirmed by the user).** There is no student login for Brain, so My Brain and Knowledge Frontier screens are dropped. **Knock-on for the other features (open, must be decided before they are built):** the source plans for the AI Study Companion and the Career & Talent Hub, and the player side of Academic Arena, are student-facing. Without student logins each needs a decision: parent-mediated, teacher-mediated, or a separate student access later.
 
 **What exists** (branch `claude/gracious-curie-ylyt1w`, all under `src/pages/application/Brain/`):
 - `brainMath.js`: the deterministic evidence rules (missing is not zero, shared marks for multi-topic questions, evidence strength, bands, trend, class insights, CSV import preview, parent summary). 22 unit tests in `tests/brainMath.test.mjs`.
@@ -204,13 +206,20 @@ No real student data goes to any AI service until these are done:
 - `docs/STUDENT_BRAIN_API_CONTRACT.md`: the proposed endpoints and rules for the backend developer.
 - **Animated brain map** (`brainViz.js`, `components/BrainViz.jsx`), shown on the parent Learning Map. A 2D SVG brain, chosen over 3D so it stays light on cheap phones and slow data. One glowing point per topic: colour = performance band (never red), size = evidence strength, hollow dashed = limited evidence, dim = not assessed yet, outward ripple = marks have gone up. Lines join only points of the same topic group (no cross-topic links, because prerequisites are undecided). Slow idle motion with a Pause button, switched off entirely for "reduce motion". Keyboard and screen-reader accessible; the topic list below it is the full-detail version. It states plainly that it is not a measure of intelligence. Meant to be reused for the student's own "My Brain" view once student logins are decided.
 
+### 2026-11-23 (later) — Teacher repository of student brains
+
+- **Student brains** is now the teacher's landing page at `/dashboard/teacher/brain` (tabs: Student brains, Class insights, Assessments at `/brain/assessments`). Opens with every student and a still mini brain each. A "Who could use support?" panel narrows it by topic and level (Everyone, Needs focused practice, Needs practice or still developing, Not enough evidence yet), with one-tap "Most common" topics. Filters live in the URL so a view can be shared.
+- Row click opens that student's full brain (`/brain/students/:studentId`): animated brain, topic cards, progress across tests, plain-words summary. The filtered topic is pre-selected. Class-insights rows click through to the matching focused-practice list.
+- **Rules kept:** students with limited evidence are never listed as needing practice, they appear under "Not enough evidence yet" and in a "Not included above" note. Unassessed students are listed separately. Sorting puts enough-evidence students first, lowest marks first; thin evidence never floats to the top. Wording is "could use support", never "weak" or "lacking", and the page says it is not a ranking.
+- Endpoints added to the contract: `GET /api/teacher/brain/students` and `/students/:studentId`. Teachers must only ever receive students from classes they teach.
+
 **Provisional and awaiting the product owner** (all in `brainMath.js`, one place to change):
 - Band cut-offs (strong ≥ 85, well ≥ 70, developing ≥ 50, else needs focused practice).
 - Minimum evidence for a label (3 marked questions and 10 marks). Below it a topic is "Limited evidence".
 - Trend counts as a change at ±10 points. Class view counts "at or below 50%".
 - Topic suggestions are a **keyword mock**. No AI tool or model is chosen. The UI always labels them "Suggested, needs review".
 
-**Not built yet (Phase 1 gaps):** PDF/XLSX import (CSV only), creating or uploading a question paper, teacher-picks-class/subject selector on insights, per-student drill-down page for teachers, "Discuss with teacher", home support plan, Parent AI assistant.
+**Not built yet (Phase 1 gaps):** PDF/XLSX import (CSV only), creating or uploading a question paper, teacher-picks-class/subject selector on insights, "Discuss with teacher", home support plan, Parent AI assistant.
 
 **Open question for the backend developer:** how a Brain assessment relates to the existing grading `AssessmentEntry` (see the API contract). Existing grading stores one total score per student, not per question.
 

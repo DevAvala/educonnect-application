@@ -419,3 +419,111 @@ export function summariseChild(nodes, evidence, firstName = 'Your child') {
     }
     return out;
 }
+
+// ─── Finding students who could use support (teacher repository) ─────────────
+
+/**
+ * What "could use support" means. Wording is deliberately gentle and never ranks children.
+ * 'limited' is NOT a verdict on the student: it lists those we cannot say anything about yet.
+ */
+export const SUPPORT_LEVELS = Object.freeze({
+    all:              { key: 'all',              label: 'Everyone',                           bands: [] },
+    focus:            { key: 'focus',            label: 'Needs focused practice',            bands: ['needs_practice'] },
+    focus_developing: { key: 'focus_developing', label: 'Needs practice or still developing', bands: ['needs_practice', 'developing'] },
+    limited:          { key: 'limited',          label: 'Not enough evidence yet',            bands: ['limited'] },
+});
+
+/**
+ * Who in a class could use support, for one topic or across all topics.
+ *
+ * Students whose evidence is limited are never counted as needing practice: they are returned in
+ * `limited` so the teacher can see we simply cannot tell yet. Students who have not been assessed
+ * on the topic at all are returned in `notAssessed`.
+ *
+ * @param students           [{ id, fullName }]
+ * @param evidenceByStudent  { [studentId]: { [nodeId]: NodeEvidence } }
+ * @param nodes              [{ id, ... }]
+ * @param nodeId             a topic id, or null for "any topic"
+ * @param level              key of SUPPORT_LEVELS
+ *   level 'all' is the repository view: every student is a row. For one topic `matches` holds that
+ *   topic's evidence (empty when not assessed); for "any topic" it holds only topics needing focused practice.
+ * @returns { rows: [{ student, matches: [{ nodeId, ev, band }] }], notAssessed: Student[], limited: Student[] }
+ *   rows are ordered by greatest need first (lowest marks for one topic; most topics for "any").
+ */
+export function findStudentsForSupport({ students, evidenceByStudent, nodes, nodeId = null, level = 'focus' }) {
+    const wanted = new Set((SUPPORT_LEVELS[level] ?? SUPPORT_LEVELS.focus).bands);
+    const topicIds = nodeId ? [nodeId] : nodes.map((n) => n.id);
+
+    if (level === 'all') {
+        const everyone = students.map((student) => {
+            const evidence = evidenceByStudent[student.id] ?? {};
+            const matches = topicIds
+                .filter((id) => evidence[id])
+                .map((id) => ({ nodeId: id, ev: evidence[id], band: performanceBand(evidence[id]) }))
+                .filter((m) => nodeId || m.band.key === 'needs_practice')
+                .sort((a, b) => a.ev.pct - b.ev.pct);
+            return { student, matches };
+        });
+        everyone.sort((a, b) => {
+            if (nodeId) {
+                // Enough evidence first (lowest marks first), then limited evidence, then not assessed.
+                // Thin evidence must never float to the top and look like need.
+                const tier = (r) => (!r.matches.length ? 2 : r.matches[0].band.key === 'limited' ? 1 : 0);
+                return tier(a) - tier(b)
+                    || (tier(a) === 0 ? a.matches[0].ev.pct - b.matches[0].ev.pct : 0)
+                    || a.student.fullName.localeCompare(b.student.fullName);
+            }
+            return b.matches.length - a.matches.length || a.student.fullName.localeCompare(b.student.fullName);
+        });
+        return { rows: everyone, notAssessed: [], limited: [] };
+    }
+
+    const rows = []; const notAssessed = []; const limited = [];
+    for (const student of students) {
+        const evidence = evidenceByStudent[student.id] ?? {};
+        const matches = [];
+        let anyEvidence = false; let anyLimited = false;
+
+        for (const id of topicIds) {
+            const ev = evidence[id];
+            if (!ev) continue;
+            anyEvidence = true;
+            const band = performanceBand(ev);
+            if (band.key === 'limited') anyLimited = true;
+            if (wanted.has(band.key)) matches.push({ nodeId: id, ev, band });
+        }
+
+        if (matches.length) rows.push({ student, matches: matches.sort((a, b) => a.ev.pct - b.ev.pct) });
+        else if (!anyEvidence) notAssessed.push(student);
+        else if (anyLimited && level !== 'limited') limited.push(student);
+    }
+
+    rows.sort((a, b) => (nodeId
+        ? a.matches[0].ev.pct - b.matches[0].ev.pct
+        : b.matches.length - a.matches.length || a.matches[0].ev.pct - b.matches[0].ev.pct)
+        || a.student.fullName.localeCompare(b.student.fullName));
+    return { rows, notAssessed, limited };
+}
+
+/** How many students need focused practice per topic, most first. Drives the quick-pick chips. */
+export function topicsByNeed(students, evidenceByStudent, nodes) {
+    return nodes
+        .map((node) => {
+            const { rows } = findStudentsForSupport({ students, evidenceByStudent, nodes, nodeId: node.id, level: 'focus' });
+            return { node, count: rows.length };
+        })
+        .filter((x) => x.count > 0)
+        .sort((a, b) => b.count - a.count || a.node.subtopic.localeCompare(b.node.subtopic));
+}
+
+/** Counts of one student's topics by band, for headline numbers and the mini brain's description. */
+export function brainSummary(nodes, evidence) {
+    const out = { strong: 0, well: 0, developing: 0, needs_practice: 0, limited: 0, notAssessed: 0, assessed: 0 };
+    for (const n of nodes) {
+        const ev = evidence[n.id];
+        if (!ev) { out.notAssessed += 1; continue; }
+        out.assessed += 1;
+        out[performanceBand(ev).key] += 1;
+    }
+    return out;
+}

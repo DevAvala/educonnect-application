@@ -67,6 +67,10 @@ All under `/api/teacher/brain`, teacher role required. Responses are wrapped as 
 | `POST /assessments/:id/reopen-mapping` | `{ reason }` | `{ assessment }` |
 | `PUT /assessments/:id/marks` | `{ marks: { [studentId]: { [questionId]: { status, earned } } }, source: 'manual' \| 'import' }` | `{ assessment, marks }` — replaces the marks for each student present in the body; students not in the body are untouched |
 | `GET /class-insights?className=&subjectName=` | — | `{ className, subjectName, studentCount, nodes, assessments: [{ id, title, date }], rows }` |
+| `GET /students` | — | `{ className, subjectName, nodes, students: [{ id, fullName, admissionNo }], evidence: { [studentId]: { [nodeId]: NodeEvidence } }, assessments: [{ id, title, date }] }` — every student in the teacher's class with their per-topic evidence (same shape as the parent endpoint). Powers the Student brains list. Only students from classes this teacher teaches. |
+| `GET /students/:studentId` | — | `{ student, className, subjectName, nodes, evidence, assessments }` — one student's brain. 404 if the student is not in one of the teacher's classes. |
+
+The Student brains list filters on the client from this one response ("who could use support in topic X" is `findStudentsForSupport()` in `brainMath.js`, covered by tests). For large schools the server may paginate or filter by `?topic=&level=`; the rules to reproduce are: a student counts as "needs focused practice" only when their evidence for the topic is not `limited` and `pct < 50`; students with `limited` evidence are listed separately as "not enough evidence yet" and are **never** counted as needing support; students with no evidence on the topic are "not assessed".
 
 `rows[]` (one per topic with any evidence):
 `{ nodeId, classPct, studentsWithEvidence, studentsLimited, studentsBelow, pctBelow, questions, assessments }`

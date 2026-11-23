@@ -4,6 +4,7 @@ import {
     parseMarkInput, formatMark, validateTags, mappingProblems,
     studentEvidence, evidenceStrength, performanceBand, trendDirection, describeTrend,
     classInsights, parseCsv, previewImport, importIsApplicable, BANDS, summariseChild,
+    findStudentsForSupport, topicsByNeed, brainSummary, SUPPORT_LEVELS,
 } from '../src/pages/application/Brain/brainMath.js';
 
 // ─── Mark entry ──────────────────────────────────────────────────────────────
@@ -300,4 +301,71 @@ test('brain decoration is deterministic and inside the outline; no band is colou
     assert.ok(NODE_RADIUS.good > NODE_RADIUS.moderate && NODE_RADIUS.moderate > NODE_RADIUS.limited && NODE_RADIUS.limited > NODE_RADIUS.none);
     for (const band of Object.values(BANDS)) assert.ok(TONE_COLOR[band.tone], `no colour for tone ${band.tone}`);
     assert.ok(!Object.values(TONE_COLOR).some((c) => /^#(dc2626|ef4444|b91c1c)$/i.test(c)));
+});
+
+// ─── Teacher repository: students who could use support ──────────────────────
+
+const ev = (pct, questions = 6, assessments = 2) => ({ pct, questions, assessments, available: questions * 5, series: [{ pct }] });
+const roster = [
+    { id: 'a', fullName: 'Ada' }, { id: 'b', fullName: 'Bayo' }, { id: 'c', fullName: 'Chi' },
+    { id: 'd', fullName: 'Dayo' }, { id: 'e', fullName: 'Efe' },
+];
+const supportNodes = [{ id: 'ap', subtopic: 'Arithmetic progressions' }, { id: 'lin', subtopic: 'Linear equations' }];
+const supportEvidence = {
+    a: { ap: ev(30), lin: ev(90) },            // needs practice in ap
+    b: { ap: ev(45), lin: ev(40) },            // needs practice in both
+    c: { ap: ev(60), lin: ev(95) },            // developing in ap
+    d: { ap: ev(10, 1, 1), lin: ev(80) },      // ap: limited evidence (1 question) -> NOT "lacking"
+    e: {},                                     // not assessed
+};
+
+test('support list for one topic orders by lowest marks and never counts limited evidence as needing practice', () => {
+    const r = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: 'ap', level: 'focus' });
+    assert.deepEqual(r.rows.map((x) => x.student.id), ['a', 'b']);          // 30% then 45%
+    assert.deepEqual(r.limited.map((s) => s.id), ['d']);                    // 10% but only 1 question: we cannot tell
+    assert.deepEqual(r.notAssessed.map((s) => s.id), ['e']);
+    assert.equal(r.rows[0].matches[0].band.key, 'needs_practice');
+});
+
+test('including "still developing" widens the list; the limited level lists who we cannot judge yet', () => {
+    const wide = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: 'ap', level: 'focus_developing' });
+    assert.deepEqual(wide.rows.map((x) => x.student.id), ['a', 'b', 'c']);
+    const lim = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: 'ap', level: 'limited' });
+    assert.deepEqual(lim.rows.map((x) => x.student.id), ['d']);
+    assert.ok(SUPPORT_LEVELS.focus.label && !/weak|fail|lack|bottom/i.test(Object.values(SUPPORT_LEVELS).map((l) => l.label).join(' ')));
+});
+
+test('across all topics, students with the most topics needing practice come first', () => {
+    const r = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: null, level: 'focus' });
+    assert.deepEqual(r.rows.map((x) => x.student.id), ['b', 'a']);          // b: 2 topics, a: 1 topic
+    assert.equal(r.rows[0].matches.length, 2);
+    assert.deepEqual(r.rows[0].matches.map((m) => m.nodeId), ['lin', 'ap']); // lowest marks first
+    assert.deepEqual(r.notAssessed.map((s) => s.id), ['e']);
+});
+
+test('the repository view ("Everyone") lists every student, flagging only genuine need', () => {
+    const one = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: 'ap', level: 'all' });
+    assert.equal(one.rows.length, roster.length);
+    assert.deepEqual(one.rows.map((x) => x.student.id), ['a', 'b', 'c', 'd', 'e']);       // 30, 45, 60, then limited evidence, then not assessed
+    assert.equal(one.rows[4].matches.length, 0);                                           // unassessed student still listed
+    assert.equal(one.rows[3].matches[0].band.key, 'limited');                              // limited evidence is shown as such
+    const any = findStudentsForSupport({ students: roster, evidenceByStudent: supportEvidence, nodes: supportNodes, nodeId: null, level: 'all' });
+    assert.equal(any.rows.length, roster.length);
+    assert.deepEqual(any.rows.slice(0, 2).map((x) => x.student.id), ['b', 'a']);          // most flagged topics first
+    assert.equal(any.rows.find((x) => x.student.id === 'd').matches.length, 0);            // limited evidence is never flagged
+    assert.equal(any.rows.find((x) => x.student.id === 'c').matches.length, 0);            // developing is not flagged at this level
+});
+
+test('topicsByNeed ranks topics by how many students need focused practice and drops empty ones', () => {
+    const t = topicsByNeed(roster, supportEvidence, supportNodes);
+    assert.deepEqual(t.map((x) => [x.node.id, x.count]), [['ap', 2], ['lin', 1]]);
+    assert.deepEqual(topicsByNeed(roster, { a: { ap: ev(95), lin: ev(95) } }, supportNodes), []);
+});
+
+test('brainSummary counts topics by band without inventing data', () => {
+    const s = brainSummary(supportNodes, supportEvidence.b);
+    assert.equal(s.needs_practice, 2); assert.equal(s.assessed, 2); assert.equal(s.notAssessed, 0);
+    const none = brainSummary(supportNodes, {});
+    assert.equal(none.notAssessed, 2); assert.equal(none.assessed, 0);
+    assert.equal(brainSummary(supportNodes, supportEvidence.d).limited, 1);
 });

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart3 } from 'lucide-react';
 import TeacherLayout from '../../TeacherDashboard/components/layout/TeacherLayout.jsx';
 import { StatusChip, WorkbenchTable } from '../../../../components/patterns';
 import { getClassInsights } from '../services/brainAPIs.js';
 import { CLASS_BELOW_PCT, MIN_EVIDENCE } from '../brainMath.js';
 import { DemoDataBanner, EvidenceCaveat, nodePath } from '../components/BrainShared.jsx';
-import BrainHeader from './BrainHeader.jsx';
+import BrainHeader, { BRAIN_TEACHER_ROUTES } from './BrainHeader.jsx';
 
 export default function ClassInsightsPage() {
+    const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -83,6 +85,7 @@ export default function ClassInsightsPage() {
                     </p>
                 )}
                 <EvidenceCaveat audience="teacher" />
+                <p className="text-[13px] text-gray-500">Click a topic to see which students could use support in it.</p>
                 <WorkbenchTable
                     title="Class topic insights"
                     storageKey="teacher-brain-insights"
@@ -94,6 +97,7 @@ export default function ClassInsightsPage() {
                     filters={filters}
                     searchPlaceholder="Search topics…"
                     searchKeys={['name']}
+                    onRowClick={(r) => navigate(`${BRAIN_TEACHER_ROUTES.students}?topic=${r.nodeId}&level=focus`)}
                     emptyState={{
                         icon: BarChart3,
                         title: 'No class insights yet',

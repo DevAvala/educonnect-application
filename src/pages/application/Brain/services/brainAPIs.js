@@ -188,6 +188,42 @@ export async function getClassInsights() {
     });
 }
 
+// ─── Teacher: the repository of student brains ───────────────────────────────
+
+function approvedContext() {
+    const all = mockState.all();
+    const assessments = all.map((x) => x.assessment);
+    const marks = Object.fromEntries(all.map((x) => [x.assessment.id, x.marks]));
+    const used = assessments.filter((a) => a.mappingStatus === 'approved')
+        .map((a) => ({ id: a.id, title: a.title, date: a.date }));
+    return { assessments, marks, used };
+}
+
+/** Every student in the teacher's class with their per-topic evidence, for the Student Brains list. */
+export async function listStudentBrains() {
+    if (!BRAIN_USE_MOCKS) return real('get', '/api/teacher/brain/students');
+    await delay(350);
+    const { assessments, marks, used } = approvedContext();
+    const evidence = Object.fromEntries(MOCK_STUDENTS.map((s) => [s.id, studentEvidence(assessments, marks, s.id)]));
+    return clone({
+        className: 'JSS 2', subjectName: 'Mathematics',
+        nodes: MOCK_NODES, students: MOCK_STUDENTS, evidence, assessments: used,
+    });
+}
+
+/** One student's full brain, as the teacher sees it. */
+export async function getStudentBrain(studentId) {
+    if (!BRAIN_USE_MOCKS) return real('get', `/api/teacher/brain/students/${studentId}`);
+    await delay(300);
+    const student = MOCK_STUDENTS.find((s) => s.id === studentId);
+    if (!student) return fail('Student not found', 404);
+    const { assessments, marks, used } = approvedContext();
+    return clone({
+        student, className: 'JSS 2', subjectName: 'Mathematics', nodes: MOCK_NODES,
+        evidence: studentEvidence(assessments, marks, studentId), assessments: used,
+    });
+}
+
 // ─── Parent ──────────────────────────────────────────────────────────────────
 
 /**

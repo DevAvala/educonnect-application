@@ -88,6 +88,8 @@ const ScoreEntryPage                 = lazy(() => import("./pages/application/Te
 const TeacherAssessmentPoliciesPage  = lazy(() => import("./pages/application/TeacherDashboard/TeacherAssessmentPoliciesPage.jsx"));
 
 // Student Brain (teacher + parent views)
+const StudentBrainsPage         = lazy(() => import("./pages/application/Brain/teacher/StudentBrainsPage.jsx"));
+const StudentBrainDetailPage    = lazy(() => import("./pages/application/Brain/teacher/StudentBrainDetailPage.jsx"));
 const BrainAssessmentsPage      = lazy(() => import("./pages/application/Brain/teacher/BrainAssessmentsPage.jsx"));
 const BrainAssessmentDetailPage = lazy(() => import("./pages/application/Brain/teacher/BrainAssessmentDetailPage.jsx"));
 const BrainClassInsightsPage    = lazy(() => import("./pages/application/Brain/teacher/ClassInsightsPage.jsx"));
@@ -242,7 +244,9 @@ function AppRoutes() {
                 <Route path="/dashboard/teacher/timetable" element={<ProtectedRoute requiredRole="teacher"><MyTimetablePage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/score-entry" element={<ProtectedRoute requiredRole="teacher"><ScoreEntryPage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/assessment-policies" element={<ProtectedRoute requiredRole="teacher"><TeacherAssessmentPoliciesPage /></ProtectedRoute>} />
-                <Route path="/dashboard/teacher/brain" element={<ProtectedRoute requiredRole="teacher"><BrainAssessmentsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain" element={<ProtectedRoute requiredRole="teacher"><StudentBrainsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain/students/:studentId" element={<ProtectedRoute requiredRole="teacher"><StudentBrainDetailPage /></ProtectedRoute>} />
+                <Route path="/dashboard/teacher/brain/assessments" element={<ProtectedRoute requiredRole="teacher"><BrainAssessmentsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/brain/insights" element={<ProtectedRoute requiredRole="teacher"><BrainClassInsightsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/teacher/brain/assessments/:assessmentId" element={<ProtectedRoute requiredRole="teacher"><BrainAssessmentDetailPage /></ProtectedRoute>} />
 
