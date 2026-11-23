@@ -23,12 +23,13 @@ function Spark({ series, tone }) {
     );
 }
 
-export function TopicCard({ node, ev, flash }) {
+export function TopicCard({ node, ev, flash, hovered = false, onHover }) {
     const [open, setOpen] = useState(false);
     const band = performanceBand(ev);
     const trend = trendDirection(ev.series);
     return (
-        <li id={`topic-${node.id}`} className={`scroll-mt-20 rounded-xl border bg-white p-3.5 transition-shadow duration-500 ${flash ? 'border-blue-300 shadow-[0_0_0_3px_rgba(59,130,246,0.25)]' : 'border-gray-200'}`}>
+        <li id={`topic-${node.id}`} onMouseEnter={() => onHover?.(node.id)} onMouseLeave={() => onHover?.(null)}
+            className={`scroll-mt-20 rounded-xl border bg-white p-3.5 transition-all duration-300 ${flash ? 'border-blue-300 shadow-[0_0_0_3px_rgba(59,130,246,0.25)]' : hovered ? 'border-blue-300 shadow-md' : 'border-gray-200'}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <h4 className="text-[14px] font-semibold text-gray-900">{node.subtopic}</h4>

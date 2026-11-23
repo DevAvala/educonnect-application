@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlaskConical, Info } from 'lucide-react';
-import { StatusChip } from '../../../../components/patterns';
+import { StatusChip, CHIP_TONES } from '../../../../components/patterns';
 import { BRAIN_USE_MOCKS } from '../services/brainAPIs.js';
+import '../brain.css';
 import { evidenceStrength, performanceBand } from '../brainMath.js';
 
 /** Shown on every Brain page while the demo store is answering instead of the real backend. */
@@ -52,6 +53,15 @@ export function EvidenceMeter({ node, showLabel = true }) {
     );
 }
 
+/** A coloured label that is allowed to wrap, so a long topic name never pushes a phone screen sideways. */
+export function TopicChip({ tone = 'gray', children }) {
+    return (
+        <span className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[12px] font-semibold leading-snug ${CHIP_TONES[tone] ?? CHIP_TONES.gray}`}>
+            <span className="min-w-0 break-words">{children}</span>
+        </span>
+    );
+}
+
 export function BandChip({ node }) {
     const band = performanceBand(node);
     return <StatusChip tone={band.tone} size="xs" dot={false}>{band.label}</StatusChip>;
@@ -89,6 +99,55 @@ export function EvidenceLegend() {
             <span className="inline-flex items-center gap-1.5"><span className="inline-flex gap-0.5"><i className="h-1.5 w-1.5 rounded-full bg-slate-500" /><i className="h-1.5 w-1.5 rounded-full bg-slate-200" /><i className="h-1.5 w-1.5 rounded-full bg-slate-200" /></span>dots show how much evidence there is</span>
             <span>bar colour shows performance on assessed questions</span>
             <span>topics with limited evidence get no label</span>
+        </div>
+    );
+}
+
+// ─── Text size ───────────────────────────────────────────────────────────────
+
+const TEXT_SIZES = [
+    { key: 'normal', label: 'Normal', factor: 1.1 },
+    { key: 'large', label: 'Large', factor: 1.25 },
+    { key: 'xl', label: 'Extra large', factor: 1.45 },
+];
+const TEXT_KEY = 'ec_brain_text_size';
+
+function applyTextSize(key) {
+    const size = TEXT_SIZES.find((s) => s.key === key) ?? TEXT_SIZES[1];
+    document.documentElement.style.setProperty('--bf', String(size.factor));
+    return size.key;
+}
+
+/** Lets anyone make the Student Brain text bigger or smaller. Remembers the choice on this device. */
+export function TextSizeControl() {
+    const [size, setSize] = useState(() => {
+        try { return localStorage.getItem(TEXT_KEY) || 'large'; } catch { return 'large'; }
+    });
+    useEffect(() => {
+        const applied = applyTextSize(size);
+        try { localStorage.setItem(TEXT_KEY, applied); } catch { /* storage unavailable */ }
+    }, [size]);
+
+    return (
+        <div role="radiogroup" aria-label="Text size" className="inline-flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+            <span className="px-2 text-[12px] font-semibold text-gray-500" aria-hidden="true">Text size</span>
+            {TEXT_SIZES.map((s, i) => (
+                <button key={s.key} role="radio" aria-checked={size === s.key} aria-label={s.label} title={s.label} onClick={() => setSize(s.key)}
+                    className={`rounded-lg px-2.5 py-1 font-bold transition-colors ${size === s.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                    style={{ fontSize: 12 + i * 3 }}>
+                    A
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/** The demo banner (when active) with the Text size control beside it. Sits at the top of every Brain page. */
+export function BrainTopBar() {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 flex-1 basis-80"><DemoDataBanner /></div>
+            <TextSizeControl />
         </div>
     );
 }

@@ -49,7 +49,8 @@ const groupKey = (n) => `${n.subject}|${n.topic}`;
  * picture never reshuffles between visits.
  *
  * @param nodes  [{ id, subject, topic, subtopic }]
- * @returns { items: [{ id, x, y, groupKey, groupIndex, node }], links: [{ from, to, groupKey }] }
+ * @returns { items: [{ id, x, y, groupKey, groupIndex, node }], links: [{ from, to, groupKey }],
+ *            groups: [{ key, subject, topic, x, y, r, ids }] }  (groups drive labels and zooming)
  */
 export function layoutBrain(nodes) {
     const sorted = [...nodes].sort((a, b) =>
@@ -63,7 +64,7 @@ export function layoutBrain(nodes) {
         byKey.get(k).push(n);
     }
 
-    const items = []; const links = [];
+    const items = []; const links = []; const groupInfo = [];
     groups.forEach((k, groupIndex) => {
         const members = byKey.get(k);
         const [ax, ay] = slot(groupIndex);
@@ -71,12 +72,17 @@ export function layoutBrain(nodes) {
         members.forEach((node, i) => {
             items.push({ id: node.id, x: ax + offs[i][0], y: ay + offs[i][1], groupKey: k, groupIndex, node });
         });
+        const reach = Math.max(0, ...offs.map(([dx, dy]) => Math.hypot(dx, dy)));
+        groupInfo.push({
+            key: k, subject: members[0].subject, topic: members[0].topic, x: ax, y: ay,
+            r: reach + 12, ids: members.map((m) => m.id),
+        });
         if (members.length >= 2) {
             for (let i = 0; i < members.length - 1; i += 1) links.push({ from: members[i].id, to: members[i + 1].id, groupKey: k });
             if (members.length >= 3) links.push({ from: members[members.length - 1].id, to: members[0].id, groupKey: k });
         }
     });
-    return { items, links };
+    return { items, links, groups: groupInfo };
 }
 
 /** Radius of a point by evidence strength; 'none' = not assessed yet. */
@@ -160,4 +166,67 @@ export function insideCerebrum(x, y) {
     const yr = dy > 0 ? ry * bottomFlatten : ry;
     const nx = (x - cx) / rx; const ny = dy / yr;
     return nx * nx + ny * ny <= 1;
+}
+
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+/**
+ * Where the camera looks: a centre and a zoom, for the SVG viewBox. Centred on the group but never
+ * panned past the edge of the picture, so zooming into a group near a corner still fills the frame.
+ */
+export function cameraFor(group, scale = 2.1) {
+    if (!group) return { cx: VIEW.w / 2, cy: VIEW.h / 2, s: 1 };
+    const w = VIEW.w / scale; const h = VIEW.h / scale;
+    return { cx: clamp(group.x, w / 2, VIEW.w - w / 2), cy: clamp(group.y, h / 2, VIEW.h - h / 2), s: scale };
+}
+
+/** The viewBox string for a camera. */
+export function viewBoxFor({ cx, cy, s }) {
+    const w = VIEW.w / s; const h = VIEW.h / s;
+    return `${(cx - w / 2).toFixed(2)} ${(cy - h / 2).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`;
+}
+
+// ─── Labels when zoomed in ───────────────────────────────────────────────────
+
+/** Break a label onto lines of at most `max` characters, on spaces. */
+export function wrapLabel(text, max = 24) {
+    const lines = []; let cur = '';
+    for (const word of String(text).split(' ')) {
+        if (cur && `${cur} ${word}`.length > max) { lines.push(cur); cur = word; } else cur = cur ? `${cur} ${word}` : word;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+}
+
+/** Rough width of a semi-bold label in view units. */
+export const labelWidth = (lines, size) => Math.max(...lines.map((l) => l.length)) * size * 0.56;
+
+/**
+ * Where to put the name beside a point when zoomed in: pushed outwards from the group's centre, wrapped,
+ * and nudged so the whole block stays inside the visible window `win` = { x, y, w, h }.
+ */
+export function placeLabel({ x, y, group, r, text, size, win, maxChars = 24 }) {
+    const lines = wrapLabel(text, maxChars);
+    const lh = size * 1.15;
+    const w = labelWidth(lines, size);
+    const h = lines.length * lh;
+    let dx = x - group.x; let dy = y - group.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) { dx = 0; dy = 1; } else { dx /= len; dy /= len; }
+    const gap = r + 9; // clear of the point's glow
+    let tx; let ty; let anchor;
+    if (Math.abs(dx) > 0.35) {
+        anchor = dx > 0 ? 'start' : 'end';
+        tx = x + Math.sign(dx) * gap; ty = y - h / 2 + size * 0.8;
+    } else {
+        anchor = 'middle'; tx = x;
+        ty = dy > 0 ? y + gap + size * 0.8 : y - gap - h + size * 0.8;
+    }
+    const left = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2;
+    const top = ty - size * 0.8;
+    const m = 3;
+    let sx = 0; let sy = 0;
+    if (left < win.x + m) sx = win.x + m - left; else if (left + w > win.x + win.w - m) sx = win.x + win.w - m - (left + w);
+    if (top < win.y + m) sy = win.y + m - top; else if (top + h > win.y + win.h - m) sy = win.y + win.h - m - (top + h);
+    return { lines, x: tx + sx, y: ty + sy, anchor, size, lh, w, h };
 }

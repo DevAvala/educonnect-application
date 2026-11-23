@@ -262,6 +262,13 @@ No real student data goes to any AI service until these are done:
 - It is **build-time only** (`.env.demo`, `VITE_BRAIN_DEMO=true`) and off in a normal build. Verified: a normal build still shows the real sign-in page, still calls the API, and ignores a planted demo role. Never set the flag on production hosting.
 - Presenter's guide and sample marks files: `docs/BRAIN_DEMO_GUIDE.md`, `docs/demo/`.
 
+### 2026-11-23 (night) — More interactive brain, bigger text, Class brain
+
+- **Text size control** (Normal / Large / Extra large, remembered per device) and a scoped bump so all Brain text is larger. Implemented in `brain.css` under a `.brain-ui` wrapper, so shared patterns stay untouched for the rest of the app.
+- **Brain interactions:** hover/focus tooltip; click a topic name or chip to zoom the camera in (labels wrap and stay in frame); clickable legend that highlights one band; **"Watch it change"** replay across the tests with a caption of which topics changed band; mouse tilt; hovering a topic card and its point highlights both. All paused by the Pause button and off under "reduce motion"; replay and zoom still work without motion.
+- **Class brain** on the teacher's Student brains page: each point is a topic coloured by the whole class, replayable, and clicking one filters the student list to who could use support. A topic is only labelled when at least 3 students have enough evidence of their own, so it always agrees with the list.
+- Bugs found by browser tests and fixed: zoom was centred on the wrong spot (now drives the SVG viewBox); long zoomed labels spilled out of frame; topic chips and the replay row overflowed phones at the largest text size.
+
 **Provisional and awaiting the product owner** (all in `brainMath.js`, one place to change):
 - Band cut-offs (strong ≥ 85, well ≥ 70, developing ≥ 50, else needs focused practice).
 - Minimum evidence for a label (3 marked questions and 10 marks). Below it a topic is "Limited evidence".

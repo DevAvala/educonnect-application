@@ -9,7 +9,7 @@ import {
     requestTopicSuggestions, saveMarks,
 } from '../services/brainAPIs.js';
 import { mappingProblems } from '../brainMath.js';
-import { DemoDataBanner } from '../components/BrainShared.jsx';
+import { BrainTopBar } from '../components/BrainShared.jsx';
 import QuestionMappingTab from './QuestionMappingTab.jsx';
 import MarksTab, { draftFromMarks } from './MarksTab.jsx';
 import ImportTab from './ImportTab.jsx';
@@ -127,8 +127,8 @@ export default function BrainAssessmentDetailPage() {
 
     return (
         <TeacherLayout>
-            <div className="mx-auto max-w-6xl space-y-4">
-                <DemoDataBanner />
+            <div className="brain-ui mx-auto max-w-6xl space-y-4">
+                <BrainTopBar />
                 <DetailPage
                     loading={loading}
                     breadcrumb={[{ label: 'Student Brain', to: BRAIN_TEACHER_ROUTES.assessments }, { label: assessment?.title ?? 'Assessment' }]}

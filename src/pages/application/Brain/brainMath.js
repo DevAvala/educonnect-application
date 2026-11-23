@@ -175,8 +175,8 @@ export function studentEvidence(assessments, marks, studentId) {
 // ─── Evidence strength, bands, trend ─────────────────────────────────────────
 
 /** 'limited' | 'moderate' | 'good' — how much assessment evidence sits behind a topic figure. */
-export function evidenceStrength({ questions = 0, assessments = 0, available = 0 }) {
-    if (questions < MIN_EVIDENCE.questions || available < MIN_EVIDENCE.marks) return 'limited';
+export function evidenceStrength({ questions = 0, assessments = 0, available = 0, forceLimited = false }) {
+    if (forceLimited || questions < MIN_EVIDENCE.questions || available < MIN_EVIDENCE.marks) return 'limited';
     if (assessments >= 2 && questions >= 5) return 'good';
     return 'moderate';
 }
@@ -524,6 +524,92 @@ export function brainSummary(nodes, evidence) {
         if (!ev) { out.notAssessed += 1; continue; }
         out.assessed += 1;
         out[performanceBand(ev).key] += 1;
+    }
+    return out;
+}
+
+// ─── Replay across tests, and the class brain ────────────────────────────────
+
+/** Class-level evidence needs at least this many students with enough evidence on a topic. */
+export const MIN_CLASS_STUDENTS = 3;
+
+const sumBy = (list, key) => list.reduce((n, x) => n + x[key], 0);
+
+/** One topic's evidence using only the assessments in `allowed` (a Set of ids). Undefined if none. */
+export function evidenceNodeUpTo(ev, allowed) {
+    if (!ev) return undefined;
+    const series = ev.series.filter((s) => allowed.has(s.assessmentId));
+    if (!series.length) return undefined;
+    const earned = sumBy(series, 'earned');
+    const available = sumBy(series, 'available');
+    return {
+        ...ev, series, earned: round1(earned), available: round1(available),
+        questions: sumBy(series, 'questions'), assessments: series.length,
+        pct: Math.round((earned / available) * 100), lastAssessed: series[series.length - 1].date,
+    };
+}
+
+/**
+ * A student's evidence as it stood after only some of the assessments, for the "watch it change"
+ * replay. Pure re-aggregation of the series already calculated, so it always agrees with the
+ * final figures.
+ */
+export function evidenceUpTo(evidence, allowed) {
+    const out = {};
+    for (const [nodeId, ev] of Object.entries(evidence)) {
+        const cut = evidenceNodeUpTo(ev, allowed);
+        if (cut) out[nodeId] = cut;
+    }
+    return out;
+}
+
+/** Topics whose band differs between two moments: [{ nodeId, from, to }] (labels, 'Not assessed yet' if none). */
+export function bandChanges(prev, next, nodes) {
+    const label = (ev) => (ev ? performanceBand(ev).label : 'Not assessed yet');
+    return nodes
+        .map((n) => ({ nodeId: n.id, from: label(prev[n.id]), to: label(next[n.id]) }))
+        .filter((c) => c.from !== c.to && c.to !== 'Not assessed yet');
+}
+
+/**
+ * The whole class as one brain: per topic, marks across every student, by assessment. Shaped like a
+ * student's NodeEvidence so the same picture can draw it, plus `classMeta`. A topic is only labelled
+ * when at least MIN_CLASS_STUDENTS students have enough evidence of their own (`forceLimited` otherwise),
+ * so it always agrees with the "who could use support" list.
+ *
+ * @param allowed  optional Set of assessment ids, to replay the class over time
+ */
+export function classEvidence(nodes, evidenceByStudent, students, allowed = null) {
+    const out = {};
+    for (const node of nodes) {
+        const byAssessment = new Map();
+        let withEvidence = 0; let enough = 0; let below = 0;
+
+        for (const s of students) {
+            let ev = evidenceByStudent[s.id]?.[node.id];
+            if (ev && allowed) ev = evidenceNodeUpTo(ev, allowed);
+            if (!ev) continue;
+            withEvidence += 1;
+            if (evidenceStrength(ev) !== 'limited') { enough += 1; if (ev.pct <= CLASS_BELOW_PCT) below += 1; }
+            for (const p of ev.series) {
+                const slot = byAssessment.get(p.assessmentId) ?? { assessmentId: p.assessmentId, title: p.title, date: p.date, earned: 0, available: 0, questions: 0 };
+                slot.earned += p.earned; slot.available += p.available; slot.questions += p.questions;
+                byAssessment.set(p.assessmentId, slot);
+            }
+        }
+        if (!byAssessment.size) continue;
+
+        const series = [...byAssessment.values()]
+            .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+            .map((p) => ({ ...p, earned: round1(p.earned), available: round1(p.available), pct: Math.round((p.earned / p.available) * 100) }));
+        const earned = sumBy(series, 'earned'); const available = sumBy(series, 'available');
+        out[node.id] = {
+            nodeId: node.id, earned: round1(earned), available: round1(available),
+            pct: Math.round((earned / available) * 100), questions: sumBy(series, 'questions'),
+            assessments: series.length, series, lastAssessed: series[series.length - 1].date,
+            forceLimited: enough < MIN_CLASS_STUDENTS,
+            classMeta: { total: students.length, withEvidence, enough, below },
+        };
     }
     return out;
 }

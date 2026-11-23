@@ -5,6 +5,7 @@ import {
     studentEvidence, evidenceStrength, performanceBand, trendDirection, describeTrend,
     classInsights, parseCsv, previewImport, importIsApplicable, BANDS, summariseChild,
     findStudentsForSupport, topicsByNeed, brainSummary, SUPPORT_LEVELS,
+    evidenceUpTo, evidenceNodeUpTo, bandChanges, classEvidence, MIN_CLASS_STUDENTS,
 } from '../src/pages/application/Brain/brainMath.js';
 
 // ─── Mark entry ──────────────────────────────────────────────────────────────
@@ -241,7 +242,7 @@ test('parent summary highlights strengths, rises and focus areas, and stays sile
 
 // ─── Animated brain layout ───────────────────────────────────────────────────
 
-import { layoutBrain, insideCerebrum, dustPoints, cerebrumPath, NODE_RADIUS, TONE_COLOR } from '../src/pages/application/Brain/brainViz.js';
+import { layoutBrain, insideCerebrum, dustPoints, cerebrumPath, NODE_RADIUS, TONE_COLOR, cameraFor, viewBoxFor, VIEW, wrapLabel, placeLabel } from '../src/pages/application/Brain/brainViz.js';
 
 const vizNodes = (spec) => spec.flatMap(([subject, topic, subs]) =>
     subs.map((s) => ({ id: `${subject}.${topic}.${s}`, subject, topic, subtopic: s })));
@@ -368,4 +369,104 @@ test('brainSummary counts topics by band without inventing data', () => {
     const none = brainSummary(supportNodes, {});
     assert.equal(none.notAssessed, 2); assert.equal(none.assessed, 0);
     assert.equal(brainSummary(supportNodes, supportEvidence.d).limited, 1);
+});
+
+// ─── Replay across tests and the class brain ─────────────────────────────────
+
+const pt = (id, date, earned, available, questions = 3) => ({ assessmentId: id, title: id, date, earned, available, pct: Math.round((earned / available) * 100), questions });
+const whole = (series) => {
+    const earned = series.reduce((n, x) => n + x.earned, 0); const available = series.reduce((n, x) => n + x.available, 0);
+    return { earned, available, pct: Math.round((earned / available) * 100), questions: series.reduce((n, x) => n + x.questions, 0), assessments: series.length, series, lastAssessed: series[series.length - 1].date };
+};
+
+test('replay: evidence up to an earlier test equals what was true then, and the last step equals the final figures', () => {
+    const ev = { ap: whole([pt('t1', '2026-09-01', 2, 10), pt('t2', '2026-10-01', 5, 10), pt('t3', '2026-11-01', 9, 10)]) };
+    const t1 = evidenceUpTo(ev, new Set(['t1']));
+    assert.equal(t1.ap.pct, 20); assert.equal(t1.ap.assessments, 1);
+    const t2 = evidenceUpTo(ev, new Set(['t1', 't2']));
+    assert.equal(t2.ap.pct, 35); assert.equal(t2.ap.questions, 6);                  // (2+5)/20
+    const all = evidenceUpTo(ev, new Set(['t1', 't2', 't3']));
+    assert.equal(all.ap.pct, ev.ap.pct); assert.equal(all.ap.earned, ev.ap.earned);
+    assert.deepEqual(evidenceUpTo(ev, new Set(['nope'])), {});                       // not assessed yet at that time
+    assert.equal(evidenceNodeUpTo(undefined, new Set(['t1'])), undefined);
+});
+
+test('replay: band changes list only topics whose band moved, never "not assessed"', () => {
+    const nodes = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const mk = (pct) => ({ pct, questions: 6, assessments: 2, available: 30 });
+    const changes = bandChanges({ a: mk(40), b: mk(90) }, { a: mk(75), b: mk(92), c: mk(60) }, nodes);
+    assert.deepEqual(changes.map((c) => [c.nodeId, c.from, c.to]), [
+        ['a', 'Needs focused practice', 'Performing well'],
+        ['c', 'Not assessed yet', 'Developing'],
+    ]);
+    assert.deepEqual(bandChanges({}, {}, nodes), []);
+});
+
+test('class brain: aggregates every student by test and agrees with the support list on thin evidence', () => {
+    const nodes = [{ id: 'ap' }, { id: 'circ' }];
+    const dates = ['2026-09-01', '2026-10-01', '2026-11-01'];
+    const mkEv = (pcts) => whole(pcts.map(([id, e, a], i) => pt(id, dates[i], e, a, 3)));
+    const students = ['s1', 's2', 's3', 's4'].map((id) => ({ id, fullName: id }));
+    const byStudent = {
+        s1: { ap: mkEv([['t1', 2, 10], ['t2', 3, 10]]), circ: whole([pt('t1', '2026-09-01', 1, 4, 1)]) },
+        s2: { ap: mkEv([['t1', 8, 10], ['t2', 9, 10]]), circ: whole([pt('t1', '2026-09-01', 4, 4, 1)]) },
+        s3: { ap: mkEv([['t1', 4, 10], ['t2', 4, 10]]) },
+        s4: {},
+    };
+    const c = classEvidence(nodes, byStudent, students);
+    assert.equal(c.ap.pct, Math.round(((2 + 3 + 8 + 9 + 4 + 4) / 60) * 100));      // 51%
+    assert.deepEqual(c.ap.series.map((p) => p.assessmentId), ['t1', 't2']);
+    assert.equal(c.ap.classMeta.enough, 3); assert.equal(c.ap.classMeta.below, 2);   // s1 25%, s3 40%
+    assert.equal(c.ap.forceLimited, false);
+    assert.equal(performanceBand(c.ap).key, 'developing');                           // 51%
+    // circle theorems: only 1 question each, nobody has enough evidence -> labelled limited
+    assert.equal(c.circ.classMeta.enough, 0); assert.equal(c.circ.forceLimited, true);
+    assert.equal(performanceBand(c.circ).key, 'limited');
+    assert.ok(MIN_CLASS_STUDENTS >= 2);
+    // replay the class after only test 1
+    const first = classEvidence(nodes, byStudent, students, new Set(['t1']));
+    assert.equal(first.ap.assessments, 1); assert.equal(first.ap.pct, Math.round(((2 + 8 + 4) / 30) * 100));
+});
+
+test('topic groups carry the position and reach used for labels and zooming', () => {
+    const nodes = vizNodes([['Maths', 'Algebra', ['Linear', 'Quadratic', 'Simultaneous']], ['Maths', 'Geometry', ['Circles']]]);
+    const { groups, items } = layoutBrain(nodes);
+    assert.equal(groups.length, 2);
+    const alg = groups.find((g) => g.topic === 'Algebra');
+    assert.deepEqual(alg.ids.length, 3);
+    for (const id of alg.ids) { const it = items.find((i) => i.id === id); assert.ok(Math.hypot(it.x - alg.x, it.y - alg.y) <= alg.r); }
+    // zooming to a group frames that group: it must lie inside the visible window
+    const cam = cameraFor(alg, 2.1);
+    const [vx, vy, vw, vh] = viewBoxFor(cam).split(' ').map(Number);
+    assert.ok(alg.x - alg.r >= vx - 1e-6 && alg.x + alg.r <= vx + vw + 1e-6, 'group fits horizontally');
+    assert.ok(alg.y - alg.r >= vy - 1e-6 && alg.y + alg.r <= vy + vh + 1e-6, 'group fits vertically');
+    // never panned past the edge of the picture
+    for (const g of groups) {
+        const [x, y, w, h] = viewBoxFor(cameraFor(g, 2.1)).split(' ').map(Number);
+        assert.ok(x >= -1e-6 && y >= -1e-6 && x + w <= VIEW.w + 1e-6 && y + h <= VIEW.h + 1e-6);
+    }
+    assert.deepEqual(cameraFor(null), { cx: VIEW.w / 2, cy: VIEW.h / 2, s: 1 });
+    assert.equal(viewBoxFor(cameraFor(null)), `0.00 0.00 ${VIEW.w}.00 ${VIEW.h}.00`);
+});
+
+test('zoomed labels wrap and stay inside the visible window, whatever the name length', () => {
+    assert.deepEqual(wrapLabel('Simultaneous equations (two unknowns) · 58%'), ['Simultaneous equations', '(two unknowns) · 58%']);
+    assert.deepEqual(wrapLabel('Circle theorems · 75%'), ['Circle theorems · 75%']);
+    const nodes = vizNodes([
+        ['Maths', 'Algebra', ['Linear equations', 'Quadratic equations', 'Simultaneous equations (two unknowns)']],
+        ['Maths', 'Geometry', ['Circle theorems']],
+        ['Maths', 'Sequences', ['Arithmetic progressions', 'Geometric progressions']],
+        ['English', 'Reading', ['Inference', 'Vocabulary', 'Summary', 'Author tone and purpose']],
+    ]);
+    const { groups, items } = layoutBrain(nodes);
+    for (const g of groups) {
+        const cam = cameraFor(g, 2.1); const w = VIEW.w / 2.1; const h = VIEW.h / 2.1;
+        const win = { x: cam.cx - w / 2, y: cam.cy - h / 2, w, h };
+        for (const it of items.filter((i) => i.groupKey === g.key)) {
+            const L = placeLabel({ x: it.x, y: it.y, group: g, r: 7.5, text: `${it.node.subtopic} · 69%`, size: 13 / 2.1, win });
+            const left = L.anchor === 'start' ? L.x : L.anchor === 'end' ? L.x - L.w : L.x - L.w / 2;
+            assert.ok(left >= win.x && left + L.w <= win.x + win.w, `${it.id} label fits horizontally`);
+            assert.ok(L.y - L.size * 0.8 >= win.y && L.y - L.size * 0.8 + L.h <= win.y + win.h, `${it.id} label fits vertically`);
+        }
+    }
 });

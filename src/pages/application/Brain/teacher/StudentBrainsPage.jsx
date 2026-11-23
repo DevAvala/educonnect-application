@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Users } from 'lucide-react';
 import TeacherLayout from '../../TeacherDashboard/components/layout/TeacherLayout.jsx';
-import { Avatar, StatusChip, WorkbenchTable } from '../../../../components/patterns';
+import { Avatar, WorkbenchTable } from '../../../../components/patterns';
 import { listStudentBrains } from '../services/brainAPIs.js';
-import { SUPPORT_LEVELS, brainSummary, findStudentsForSupport, topicsByNeed, trendDirection } from '../brainMath.js';
-import { BandChip, DemoDataBanner, EvidenceCaveat, EvidenceMeter, PerformanceBar } from '../components/BrainShared.jsx';
+import { SUPPORT_LEVELS, brainSummary, classEvidence, findStudentsForSupport, topicsByNeed, trendDirection } from '../brainMath.js';
+import { BandChip, BrainTopBar, EvidenceCaveat, EvidenceMeter, PerformanceBar, TopicChip } from '../components/BrainShared.jsx';
+import BrainViz from '../components/BrainViz.jsx';
 import MiniBrain from '../components/MiniBrain.jsx';
 import BrainHeader, { BRAIN_TEACHER_ROUTES } from './BrainHeader.jsx';
 
@@ -20,6 +21,8 @@ export default function StudentBrainsPage() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showClassBrain, setShowClassBrain] = useState(true);
+    const [classSel, setClassSel] = useState(null);
 
     const nodeId = params.get('topic') || '';
     const level = LEVELS.includes(params.get('level')) ? params.get('level') : 'all';
@@ -49,6 +52,11 @@ export default function StudentBrainsPage() {
         () => (data ? findStudentsForSupport({ students, evidenceByStudent: evidence, nodes, nodeId: nodeId || null, level }) : null),
         [data, students, evidence, nodes, nodeId, level],
     );
+    const classGetEvidence = useCallback((allowed) => classEvidence(nodes, evidence, students, allowed), [nodes, evidence, students]);
+    const pickTopic = (id) => {
+        setQuery({ topic: id, level: 'focus' });
+        setTimeout(() => document.getElementById('students-table')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 60);
+    };
     const quickTopics = useMemo(() => (data ? topicsByNeed(students, evidence, nodes).slice(0, 4) : []), [data, students, evidence, nodes]);
 
     const rows = useMemo(() => (result?.rows ?? []).map((r) => ({
@@ -112,7 +120,7 @@ export default function StudentBrainsPage() {
                         <div className="flex max-w-[22rem] flex-wrap gap-1.5">
                             {r.matches.length === 0 && <span className="text-[13px] text-gray-400">{r.summary.assessed ? 'Nothing flagged' : 'No topics assessed yet'}</span>}
                             {r.matches.slice(0, 3).map((m) => (
-                                <StatusChip key={m.nodeId} tone={m.band.tone} size="xs" dot={false}><span className="normal-case">{nodesById[m.nodeId]?.subtopic}</span></StatusChip>
+                                <TopicChip key={m.nodeId} tone={m.band.tone}>{nodesById[m.nodeId]?.subtopic}</TopicChip>
                             ))}
                             {r.matches.length > 3 && <span className="self-center text-[12px] text-gray-400">+{r.matches.length - 3} more</span>}
                         </div>
@@ -144,15 +152,33 @@ export default function StudentBrainsPage() {
 
     return (
         <TeacherLayout>
-            <div className="mx-auto max-w-6xl space-y-4">
+            <div className="brain-ui mx-auto max-w-6xl space-y-4">
                 <BrainHeader subtitle="Every student's brain in one place. Pick a topic to see who could use extra support." />
-                <DemoDataBanner />
+                <BrainTopBar />
                 {data && (
                     <p className="text-[13px] text-gray-500">
                         <span className="font-semibold text-gray-700">{data.className} · {data.subjectName}</span> — {plural(students.length, 'student')}, based on {plural(data.assessments.length, 'approved assessment')}.
                     </p>
                 )}
                 <EvidenceCaveat audience="teacher" />
+
+                {/* ── The whole class as one brain ────────────────────── */}
+                {data && (
+                    <section aria-label="Class brain" className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[13px] text-gray-500">See the whole class at a glance, then click a topic to find who could use support.</p>
+                            <button onClick={() => setShowClassBrain((v) => !v)} aria-expanded={showClassBrain}
+                                className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
+                                {showClassBrain ? 'Hide class brain' : 'Show class brain'}
+                            </button>
+                        </div>
+                        {showClassBrain && (
+                            <BrainViz title="Class brain" intro={`Each point is a topic, coloured by how the whole class did. Based on ${students.length} students.`}
+                                nodes={nodes} evidence={{}} getEvidence={classGetEvidence} assessments={data.assessments}
+                                selectedId={classSel} onSelect={(id) => setClassSel((cur) => (cur === id ? null : id))} onPick={pickTopic} />
+                        )}
+                    </section>
+                )}
 
                 {/* ── Find students ───────────────────────────────────── */}
                 <section aria-labelledby="find-h" className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
@@ -201,6 +227,7 @@ export default function StudentBrainsPage() {
                     <p aria-live="polite" className="text-[13.5px] font-medium text-gray-800">{headline}</p>
                 </section>
 
+                <div id="students-table" className="scroll-mt-4">
                 <WorkbenchTable
                     title={topic ? `Students: ${topic.subtopic}` : 'Student brains'}
                     storageKey="teacher-student-brains"
@@ -220,6 +247,7 @@ export default function StudentBrainsPage() {
                             : 'No student shows up at this level right now. Try "Needs practice or still developing" for a wider list.',
                     } : { icon: Users, title: 'No students yet', description: 'Students appear here once their class has approved assessments with marks.' }}
                 />
+                </div>
 
                 {excluded.length > 0 && (
                     <section aria-label="Not included in this list" className="rounded-2xl border border-gray-200 bg-white p-4">

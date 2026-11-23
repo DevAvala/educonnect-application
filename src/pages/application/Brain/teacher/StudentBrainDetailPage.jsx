@@ -5,7 +5,7 @@ import { DetailPage, EmptyState } from '../../../../components/patterns';
 import { getStudentBrain } from '../services/brainAPIs.js';
 import { brainSummary, summariseChild } from '../brainMath.js';
 import BrainViz from '../components/BrainViz.jsx';
-import { DemoDataBanner, EvidenceCaveat, EvidenceLegend } from '../components/BrainShared.jsx';
+import { BrainTopBar, EvidenceCaveat, EvidenceLegend } from '../components/BrainShared.jsx';
 import { GrowthTimeline, TopicCard } from '../components/TopicEvidence.jsx';
 import { BRAIN_TEACHER_ROUTES } from './BrainHeader.jsx';
 
@@ -17,6 +17,7 @@ export default function StudentBrainDetailPage() {
     const [error, setError] = useState(null);
     const [selectedId, setSelectedId] = useState(params.get('topic') || null);
     const [flashId, setFlashId] = useState(null);
+    const [hoverId, setHoverId] = useState(null);
 
     const load = useCallback(async () => {
         setLoading(true); setError(null);
@@ -58,8 +59,9 @@ export default function StudentBrainDetailPage() {
             content: (
                 <div className="space-y-4 p-4 sm:p-5">
                     <EvidenceCaveat audience="teacher" />
-                    <BrainViz nodes={nodes} evidence={evidence} selectedId={selectedId}
-                        onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} onJump={jumpToTopic} />
+                    <BrainViz nodes={nodes} evidence={evidence} assessments={data.assessments} selectedId={selectedId}
+                        onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} onJump={jumpToTopic}
+                        hoverId={hoverId} onHover={setHoverId} />
                     <EvidenceLegend />
                     {grouped.length === 0 ? (
                         <EmptyState compact title="Nothing assessed yet" description="Topics appear here once this student's marks are saved against approved assessments." />
@@ -67,7 +69,7 @@ export default function StudentBrainDetailPage() {
                         <section key={`${g.subject}|${g.topic}`} className="space-y-2">
                             <h3 className="text-[12px] font-bold uppercase tracking-wider text-gray-400">{g.subject} · {g.topic}</h3>
                             <ul className="space-y-2.5">
-                                {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} flash={flashId === n.id} />)}
+                                {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} flash={flashId === n.id} hovered={hoverId === n.id} onHover={setHoverId} />)}
                             </ul>
                         </section>
                     ))}
@@ -88,8 +90,8 @@ export default function StudentBrainDetailPage() {
 
     return (
         <TeacherLayout>
-            <div className="mx-auto max-w-6xl space-y-4">
-                <DemoDataBanner />
+            <div className="brain-ui mx-auto max-w-6xl space-y-4">
+                <BrainTopBar />
                 <DetailPage
                     loading={loading}
                     breadcrumb={[{ label: 'Student Brain', to: BRAIN_TEACHER_ROUTES.students }, { label: student?.fullName ?? 'Student' }]}

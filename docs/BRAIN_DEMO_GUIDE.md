@@ -59,12 +59,20 @@ If the build fails on Vercel, set **Node.js Version** to 22.x under Settings, Ge
 
 ## Suggested walk-through (about 7 minutes)
 
-1. **Open the app, choose "Teacher view".** "Every student's brain in one place."
+1. **Open the app, choose "Teacher view".** "Every student's brain in one place." If the text looks small on the
+   projector, use **Text size** (top right) and pick Extra large. It remembers your choice.
+1a. **The Class brain at the top.** This is the whole class as one brain. Try, in this order:
+    - **Hover** a point: a tooltip shows the class result.
+    - Click **"Watch it change"**: the brain replays Test 1, 2, 3 and says which topics moved. Drag the slider to scrub.
+    - Click a topic name (**Algebra**) or its chip: the camera zooms in and names every subtopic. **Esc** zooms out.
+    - Click **"Needs focused practice"** in the legend: only those points stay bright.
+    - Click a point, then **"See who could use support in this topic"**: the student list below filters for you.
 2. **Student brains page.** Eight students, each with a small brain. Click **"Arithmetic progressions 5"**.
    "These five students could use support here." Point out the "Not included above" note: students with too
    little evidence are never called behind.
-3. **Open the first student.** The animated brain. Tap a point; it shows the evidence behind it. Click
-   **"See the assessments behind this"** to show every figure is traceable to a test.
+3. **Open the first student.** The animated brain. Hover a topic card and its point lights up (and the other way
+   round). Tap a point; it shows the evidence behind it. Press **"Watch it change"** to see this student's brain grow
+   across the tests. Click **"See the assessments behind this"** to show every figure is traceable to a test.
 4. **Class insights tab.** Click a topic to jump to the matching students.
 5. **Assessments tab, then "Mathematics Mid-Term Exam".** Suggested topics are only suggestions and must be
    approved by the teacher. Edit one question to share its marks between two topics. Approve.

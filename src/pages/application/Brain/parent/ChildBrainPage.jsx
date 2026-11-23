@@ -7,7 +7,7 @@ import { getParentDashboard } from '../../../auth/authAPIs.js';
 import { getChildBrain } from '../services/brainAPIs.js';
 import { summariseChild } from '../brainMath.js';
 import BrainViz from '../components/BrainViz.jsx';
-import { DemoDataBanner, EvidenceCaveat, EvidenceLegend } from '../components/BrainShared.jsx';
+import { BrainTopBar, EvidenceCaveat, EvidenceLegend } from '../components/BrainShared.jsx';
 import { GrowthTimeline, TopicCard } from '../components/TopicEvidence.jsx';
 
 export default function ChildBrainPage() {
@@ -19,6 +19,7 @@ export default function ChildBrainPage() {
     const [error, setError] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
     const [flashId, setFlashId] = useState(null);
+    const [hoverId, setHoverId] = useState(null);
 
     const jumpToTopic = (id) => {
         document.getElementById(`topic-${id}`)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
@@ -66,7 +67,7 @@ export default function ChildBrainPage() {
 
     return (
         <ParentLayout>
-            <div className="mx-auto max-w-3xl space-y-4">
+            <div className="brain-ui mx-auto max-w-3xl space-y-4">
                 <div>
                     <h1 className="flex items-center gap-2.5 text-2xl font-bold text-gray-900">
                         <Brain size={24} className="text-[#002684]" aria-hidden="true" /> {child ? `${firstName}'s learning map` : 'Learning map'}
@@ -74,7 +75,7 @@ export default function ChildBrainPage() {
                     <p className="mt-1 text-sm text-gray-500">Topic by topic, where your child is doing well and where a little extra practice could help.</p>
                 </div>
 
-                <DemoDataBanner />
+                <BrainTopBar />
 
                 {children && children.length > 1 && (
                     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Choose a child">
@@ -119,8 +120,9 @@ export default function ChildBrainPage() {
                                     </section>
                                 )}
 
-                                <BrainViz nodes={nodes} evidence={evidence} selectedId={selectedId}
-                                    onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} onJump={jumpToTopic} />
+                                <BrainViz nodes={nodes} evidence={evidence} assessments={assessments} selectedId={selectedId}
+                                    onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} onJump={jumpToTopic}
+                                    hoverId={hoverId} onHover={setHoverId} />
 
                                 <EvidenceLegend />
 
@@ -128,7 +130,7 @@ export default function ChildBrainPage() {
                                     <section key={`${g.subject}|${g.topic}`} className="space-y-2">
                                         <h3 className="text-[12px] font-bold uppercase tracking-wider text-gray-400">{g.subject} · {g.topic}</h3>
                                         <ul className="space-y-2.5">
-                                            {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} flash={flashId === n.id} />)}
+                                            {g.items.map((n) => <TopicCard key={n.id} node={n} ev={evidence[n.id]} flash={flashId === n.id} hovered={hoverId === n.id} onHover={setHoverId} />)}
                                         </ul>
                                     </section>
                                 ))}

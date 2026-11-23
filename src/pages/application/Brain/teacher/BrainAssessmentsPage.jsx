@@ -5,7 +5,7 @@ import TeacherLayout from '../../TeacherDashboard/components/layout/TeacherLayou
 import { StatusChip, WorkbenchTable } from '../../../../components/patterns';
 import { formatSchoolDate } from '../../../../utils/schoolLocale.js';
 import { listBrainAssessments } from '../services/brainAPIs.js';
-import { DemoDataBanner } from '../components/BrainShared.jsx';
+import { BrainTopBar } from '../components/BrainShared.jsx';
 import BrainHeader, { BRAIN_TEACHER_ROUTES } from './BrainHeader.jsx';
 
 const SOURCE_LABEL = { manual: 'Entered by hand', import: 'Imported report' };
@@ -76,9 +76,9 @@ export default function BrainAssessmentsPage() {
 
     return (
         <TeacherLayout>
-            <div className="mx-auto max-w-6xl space-y-4">
+            <div className="brain-ui mx-auto max-w-6xl space-y-4">
                 <BrainHeader subtitle="Link each test question to a topic, add the marks, and see where your class needs help." />
-                <DemoDataBanner />
+                <BrainTopBar />
                 <WorkbenchTable
                     title="Brain assessments"
                     storageKey="teacher-brain-assessments"

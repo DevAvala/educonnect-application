@@ -5,7 +5,7 @@ import TeacherLayout from '../../TeacherDashboard/components/layout/TeacherLayou
 import { StatusChip, WorkbenchTable } from '../../../../components/patterns';
 import { getClassInsights } from '../services/brainAPIs.js';
 import { CLASS_BELOW_PCT, MIN_EVIDENCE } from '../brainMath.js';
-import { DemoDataBanner, EvidenceCaveat, nodePath } from '../components/BrainShared.jsx';
+import { BrainTopBar, EvidenceCaveat, nodePath } from '../components/BrainShared.jsx';
 import BrainHeader, { BRAIN_TEACHER_ROUTES } from './BrainHeader.jsx';
 
 export default function ClassInsightsPage() {
@@ -74,9 +74,9 @@ export default function ClassInsightsPage() {
 
     return (
         <TeacherLayout>
-            <div className="mx-auto max-w-6xl space-y-4">
+            <div className="brain-ui mx-auto max-w-6xl space-y-4">
                 <BrainHeader subtitle="See which topics many students found difficult, so you can decide what to revisit in class." />
-                <DemoDataBanner />
+                <BrainTopBar />
                 {data && (
                     <p className="text-[13px] text-gray-500">
                         <span className="font-semibold text-gray-700">{data.className} · {data.subjectName}</span>
